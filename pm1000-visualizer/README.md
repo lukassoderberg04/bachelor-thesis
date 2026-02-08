@@ -17,4 +17,4 @@ Furthermore, there are some NuGet packages that needs to be installed in order f
 *Note:* All of these packages are exposed by relying on the nuget.config file in the project.
 
 ### Install drivers
-While the NuGet packages are a great start to be able to build the project, you'll still need to install FTDI drivers. You can find the [FTDI drivers installation guide](/Documents/FTDI_Drivers_Installation_Guide__Windows_10_11.pdf) inside the documents folder.
+While the NuGet packages are a great start to be able to build the project, you'll still need to install FTDI drivers. You can find the [FTDI drivers installation guide](Documents/FTDI_Drivers_Installation_Guide__Windows_10_11.pdf) inside the documents folder.
