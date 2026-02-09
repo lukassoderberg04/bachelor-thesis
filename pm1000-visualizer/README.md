@@ -18,3 +18,5 @@ Furthermore, there are some NuGet packages that needs to be installed in order f
 
 ### Install drivers
 While the NuGet packages are a great start to be able to build the project, you'll still need to install FTDI drivers. You can find the [FTDI drivers installation guide](Documents/FTDI_Drivers_Installation_Guide__Windows_10_11.pdf) inside the documents folder.
+
+*Note:* The type of driver needed needs to be checked... download both 2DXX (comes together with VPC) and 3DXX just in case.
