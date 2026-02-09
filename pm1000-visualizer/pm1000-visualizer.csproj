@@ -13,6 +13,11 @@
 
   <ItemGroup>
     <Content Remove="C:\Users\a\.nuget\packages\ftd2xx.net\1.2.1\contentFiles\any\netstandard2.1\FTDI2XX.xml" />
+    <Content Remove="C:\Users\Lukas\.nuget\packages\ftd2xx.net\1.2.1\contentFiles\any\netstandard2.1\FTDI2XX.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="FTD2XX.dll" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,8 +25,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FTD2XX.Net" Version="1.2.1" />
+    <PackageReference Include="FTD2XX_NET" Version="1.0.14" />
     <PackageReference Include="ScottPlot.WPF" Version="5.1.57" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="FTD2XX.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

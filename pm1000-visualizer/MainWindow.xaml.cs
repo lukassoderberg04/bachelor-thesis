@@ -25,8 +25,6 @@ namespace pm1000_visualizer
 
             UInt32 deviceCount = 0;
 
-            var a = Ftdi.Rescan();
-
             var status = Ftdi.GetNumberOfDevices(ref deviceCount);
 
             if (status != FTDI.FT_STATUS.FT_OK || deviceCount == 0) { RefreshBtn.IsEnabled = true; return; }
