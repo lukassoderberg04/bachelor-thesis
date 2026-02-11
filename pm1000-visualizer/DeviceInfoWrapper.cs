@@ -4,7 +4,7 @@ namespace pm1000_visualizer
 {
     public class DeviceInfoWrapper
     {
-        private FTDI.FT_DEVICE_INFO_NODE deviceInfo { get; set; }
+        public FTDI.FT_DEVICE_INFO_NODE DeviceInfoObj { get; private set; }
 
         public string SerialNumber { get; set; }
 
@@ -12,7 +12,7 @@ namespace pm1000_visualizer
 
         public DeviceInfoWrapper(FTDI.FT_DEVICE_INFO_NODE deviceInfo)
         {
-            this.deviceInfo = deviceInfo;
+            this.DeviceInfoObj = deviceInfo;
 
             this.SerialNumber = deviceInfo.SerialNumber;
 
