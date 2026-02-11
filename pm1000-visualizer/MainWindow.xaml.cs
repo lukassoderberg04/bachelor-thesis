@@ -1,6 +1,6 @@
-﻿using FTD2XX_NET;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace pm1000_visualizer;
 
@@ -28,7 +28,7 @@ public partial class MainWindow : Window
         RefreshBtn.IsEnabled = true;
     }
 
-    private void DeviceSelector_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private void DeviceSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         throw new NotImplementedException();
     }
