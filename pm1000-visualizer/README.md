@@ -12,8 +12,6 @@ Furthermore, there are some NuGet packages that needs to be installed in order f
 
 * **ScottPlot for WPF** - Takes care of plotting graphs etc. You can read more about it [here](https://scottplot.net/).
 
-* **FTD2XX .NET** - Adds the correct .NET wrapper dll for communication with the device via USB.
-
 *Note:* All of these packages are exposed by relying on the nuget.config file in the project.
 
 ### Install drivers
