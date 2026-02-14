@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ScottPlot="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
         xmlns:local="clr-namespace:pm1000_visualizer"
         mc:Ignorable="d"
         Title="PM1000 Visualizer" Height="450" Width="800" Background="#FF28292B">
@@ -36,7 +37,7 @@
 
         <!-- Result container. -->
         <WrapPanel Grid.Row="1" Margin="15px">
-
+            <ScottPlot:WpfPlot x:Name="Plot"></ScottPlot:WpfPlot>
         </WrapPanel>
     </Grid>
 </Window>

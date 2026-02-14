@@ -1,4 +1,4 @@
-﻿using FTD2XX_NET;
+﻿using FTD3XXWU_NET;
 
 namespace pm1000_visualizer;
 
@@ -21,29 +21,21 @@ public static class FtdiService
 
         Logger.LogInfo("Trying to get information for all connected devices...");
 
-        var deviceCount = FtdiService.GetConnectedDevicesCount();
-
-        Logger.LogInfo("Allocating memory for device info!");
-        FTDI.FT_DEVICE_INFO_NODE[] deviceList = new FTDI.FT_DEVICE_INFO_NODE[deviceCount];
-
-        FTDI.FT_STATUS status = FTDI.FT_STATUS.FT_OK;
-        try
-        {
-            status = Ftdi.GetDeviceList(deviceList);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError($"Caught exception when trying to fetch info from all connected devices: {ex.Message}.");
-        }
-
+        var status = Ftdi.CreateDeviceInfoList(out UInt32 deviceCount);
         if (status != FTDI.FT_STATUS.FT_OK)
         {
-            Logger.LogError($"Calling the FTDI library didn't yield success, instead got: {status.ToString()}.");
-
-            return devices;
+            Logger.LogError("Couldn't create the device list!");
         }
+        Logger.LogInfo($"Created the device list containing {deviceCount} entries.");
 
-        foreach (var device in deviceList)
+        status = Ftdi.GetDeviceInfoList(out List<FTDI.FT_DEVICE_INFO> deviceInfoList);
+        if (status != FTDI.FT_STATUS.FT_OK)
+        {
+            Logger.LogError("Couldn't populate the device info list!");
+        }
+        Logger.LogInfo($"Successfully populated the device info list with {deviceInfoList.Count} entries.");
+
+        foreach (var device in deviceInfoList)
         {
             devices.Add(new DeviceInfoWrapper(device));
         }
@@ -65,7 +57,7 @@ public static class FtdiService
     /// </summary>
     public static bool CloseCommunication()
     {
-        var status = FtdiService.Ftdi.Close();
+        var status = Ftdi.Close();
         if (status != FTDI.FT_STATUS.FT_OK)
         {
             Logger.LogError("Failed to close open connection to FTDI device!");
@@ -92,36 +84,8 @@ public static class FtdiService
         return true;
     }
 
-    /// <summary>
-    /// Sets the baud rate of the device.
-    /// </summary>
-    public static bool SetBaudRate(UInt32 baudRate)
+    public static bool ConfigureDeviceSetting()
     {
-        var status = Ftdi.SetBaudRate(baudRate);
-        if (status != FTDI.FT_STATUS.FT_OK)
-        {
-            Logger.LogError("Failed to set the baud rate of the device!");
-
-            return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Sets the latency of the device in ms.
-    /// </summary>
-    public static bool SetLatency(byte latency)
-    {
-        var status = Ftdi.SetLatency(latency);
-        if (status != FTDI.FT_STATUS.FT_OK)
-        {
-            Logger.LogError("Failed to set the latency of the device!");
-
-            return false;
-        }
-
-        return true;
     }
 
     /// <summary>
@@ -131,9 +95,7 @@ public static class FtdiService
     {
         Logger.LogInfo("Fetching connected devices...");
 
-        UInt32 deviceCount = 0;
-
-        var status = Ftdi.GetNumberOfDevices(ref deviceCount);
+        var status = Ftdi.GetNumberOfDevicesConnected(out UInt32 deviceCount);
 
         if (status != FTDI.FT_STATUS.FT_OK)
         {

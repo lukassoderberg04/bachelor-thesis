@@ -1,5 +1,4 @@
 ﻿using System.Text;
-using FTD2XX_NET;
 
 namespace pm1000_visualizer;
 
@@ -48,9 +47,9 @@ public static class PM1000Service
 
         if(!FtdiService.OpenConnectionUsingSerialNumber(pm1000DeviceInfo.SerialNumber)) return;
 
-        if(!FtdiService.SetBaudRate(BAUD_RATE)) return;
+        // if(!FtdiService.SetBaudRate(BAUD_RATE)) return;
 
-        if(!FtdiService.SetLatency(LATENCY)) return;
+        // if(!FtdiService.SetLatency(LATENCY)) return;
 
         Logger.LogInfo("Successfully initialized the PM1000 device!");
         HasCommunicationBeenInitialized = true;
@@ -94,7 +93,7 @@ public static class PM1000Service
             Encoding.ASCII.GetBytes("0")[0],
             Encoding.ASCII.GetBytes("0")[0],
 
-            CR,
+            CR
         ];
 
         return requestPacket;

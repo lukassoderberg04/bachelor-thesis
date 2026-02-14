@@ -1,22 +1,23 @@
-﻿using FTD2XX_NET;
+﻿using FTD3XXWU_NET;
+using System.Text;
 
 namespace pm1000_visualizer
 {
     public class DeviceInfoWrapper
     {
-        public FTDI.FT_DEVICE_INFO_NODE DeviceInfoObj { get; private set; }
+        public FTDI.FT_DEVICE_INFO DeviceInfoObj { get; private set; }
 
-        public string SerialNumber { get; set; }
+        public string SerialNumber { get; private set; }
 
-        public string Description { get; set; }
+        public string Description { get; private set; }
 
-        public DeviceInfoWrapper(FTDI.FT_DEVICE_INFO_NODE deviceInfo)
+        public DeviceInfoWrapper(FTDI.FT_DEVICE_INFO deviceInfo)
         {
             this.DeviceInfoObj = deviceInfo;
 
-            this.SerialNumber = deviceInfo.SerialNumber;
+            this.SerialNumber = Encoding.ASCII.GetString(deviceInfo.SerialNumber, 0, deviceInfo.SerialNumber.Length);
 
-            this.Description  = deviceInfo.Description;
+            this.Description  = Encoding.ASCII.GetString(deviceInfo.Description, 0, deviceInfo.Description.Length);
         }
     }
 }

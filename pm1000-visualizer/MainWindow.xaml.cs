@@ -19,8 +19,6 @@ public partial class MainWindow : Window
     {
         RefreshBtn.IsEnabled = false;
 
-        Devices.Clear();
-
         var deviceInfo = FtdiService.GetConnectedDevicesInfo();
 
         deviceInfo.ForEach(info => Devices.Add(info));
