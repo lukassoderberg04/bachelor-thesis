@@ -7,6 +7,9 @@ namespace pm1000_streamer_service;
 /// </summary>
 public static class FtdiService
 {
+    public const byte SEND_PIPE = 0x02;
+    public const byte READ_PIPE = 0x82;
+
     /// <summary>
     /// The FTDI instance.
     /// </summary>
@@ -90,6 +93,29 @@ public static class FtdiService
     public static bool ConfigureDeviceSetting()
     {
         throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// Writes to PM1000 device's pipe. Returns true if it was successful.
+    /// </summary>
+    public static bool WriteToPipe(byte pipe, byte[] buffer)
+    {
+        UInt32 bytesTransfered = 0;
+
+        Logger.LogInfo($"Writing bytes to pipe: 0x{pipe:X2}.");
+
+        var status = Ftdi.WritePipe(pipe, buffer, (UInt32)buffer.Length, ref bytesTransfered);
+        
+        if (status != FTDI.FT_STATUS.FT_OK)
+        {
+            Logger.LogError($"Something went wrong when writing to the pipe! Wrote: {bytesTransfered} bytes.");
+
+            return false;
+        }
+
+        Logger.LogInfo("Successfully transmitted all bytes!");
+
+        return true;
     }
 
     /// <summary>
