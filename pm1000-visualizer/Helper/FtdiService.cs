@@ -84,14 +84,18 @@ public static class FtdiService
         return true;
     }
 
+    /// <summary>
+    /// Configures a connected device.
+    /// </summary>
     public static bool ConfigureDeviceSetting()
     {
+        throw new NotImplementedException();
     }
 
     /// <summary>
     /// Gets all FTDI devices currently connected to the computer.
     /// </summary>
-    private static UInt32 GetConnectedDevicesCount()
+    public static UInt32 GetConnectedDevicesCount()
     {
         Logger.LogInfo("Fetching connected devices...");
 

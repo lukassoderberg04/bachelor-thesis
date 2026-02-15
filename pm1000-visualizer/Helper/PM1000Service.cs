@@ -32,27 +32,23 @@ public static class PM1000Service
 
     #endregion
 
-    private const byte CR = 0x0D; // "Carriage Return" character.
-
-    private const UInt32 REQ_PAC_LEN = 9; // Request package length, in bytes.
+    private const UInt32 WRITE_DATA_PACKET_LEN = 8; // Amount of bytes.
 
     /// <summary>
-    /// Opens up communication with the PM1000 and initializes parameters for communication.
+    /// Opens up communication with the PM1000 and initializes parameters for communication. Returns true if it was successful.
     /// </summary>
-    public static void InitializeCommunication(DeviceInfoWrapper pm1000DeviceInfo)
+    public static bool InitializeCommunication(DeviceInfoWrapper pm1000DeviceInfo)
     {
         Logger.LogInfo("Tries to initialize communication with PM1000...");
 
-        if(!FtdiService.CloseCommunication()) return;
+        if(!FtdiService.CloseCommunication()) return false;
 
-        if(!FtdiService.OpenConnectionUsingSerialNumber(pm1000DeviceInfo.SerialNumber)) return;
-
-        // if(!FtdiService.SetBaudRate(BAUD_RATE)) return;
-
-        // if(!FtdiService.SetLatency(LATENCY)) return;
+        if(!FtdiService.OpenConnectionUsingSerialNumber(pm1000DeviceInfo.SerialNumber)) return false;
 
         Logger.LogInfo("Successfully initialized the PM1000 device!");
         HasCommunicationBeenInitialized = true;
+
+        return true;
     }
 
     /// <summary>
@@ -73,29 +69,31 @@ public static class PM1000Service
     }
 
     /// <summary>
-    /// Creates a request packet to be sent to the FTDI device. Always 9 bytes long.
+    /// Creates a write data packet and returns the bytes to send.
     /// </summary>
-    private static byte[] createRequestPacket(UInt32 addr)
+    private static byte[] CreateWriteDataPacket(UInt16 address, UInt16 data)
     {
-        // Request packet is of size 9 bytes.
-        byte[] requestPacket =
-        [
-            // 'R' in ASCII indicates request packet.
-            Encoding.ASCII.GetBytes("R")[0],
+        UInt16[] packet =
+        {
+            (UInt16)Encoding.ASCII.GetBytes("W")[0],
+            (UInt16)(address & 0x0FFF),
+            data,
+            0
+        };
 
-            // Contains the address of which to read.
-            (byte)((addr >> 16) & 0xFF),
-            (byte)((addr >> 8) & 0xFF),
-            (byte)(addr & 0xFF),
+        UInt16 crc = 0xFFFF; // Cyclic redundency check!
+        for (int i = 0; i < 3; i++)
+        {
+            crc = (UInt16)((crc << 1) | (crc >> 15));
 
-            Encoding.ASCII.GetBytes("0")[0],
-            Encoding.ASCII.GetBytes("0")[0],
-            Encoding.ASCII.GetBytes("0")[0],
-            Encoding.ASCII.GetBytes("0")[0],
+            crc ^= packet[i];
+        }
+        packet[3] = crc;
 
-            CR
-        ];
+        // Creates a buffer and copies the bytes created from the packet.
+        byte[] buffer = new byte[packet.Length * 2];
+        Buffer.BlockCopy(packet, 0, buffer, 0, buffer.Length);
 
-        return requestPacket;
+        return buffer;
     }
 }
