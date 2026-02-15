@@ -15,11 +15,9 @@
 
   <ItemGroup>
     <Content Include="lib\FTD3XXWU.dll">
-      <Link>FTD3XXWU.dll</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="lib\FTD3XXWU_NET.dll">
-      <Link>FTD3XXWU_NET.dll</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -29,5 +27,9 @@
       <HintPath>lib\FTD3XXWU_NET.dll</HintPath>
     </Reference>
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy /Y &quot;$(ProjectDir)lib\*.dll&quot; &quot;$(TargetDir)&quot;" />
+  </Target>
 
 </Project>
