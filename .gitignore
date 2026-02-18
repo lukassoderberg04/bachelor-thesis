@@ -1,0 +1,31 @@
+# Build outputs
+bin/
+obj/
+Debug/
+Release/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.sln.docstates
+
+# NuGet
+packages/
+*.nupkg
+project.assets.json
+project.lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Other
+*.log
+*.cache
