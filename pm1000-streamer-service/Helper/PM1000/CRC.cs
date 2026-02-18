@@ -6,6 +6,8 @@
 /// </summary>
 public static class CRC
 {
+    public static readonly UInt16 CRC_OK = 52428;
+
     /// <summary>
     /// Calculates the redundancy check by going from the left to right in the packet array.
     /// The length just determins how many UInt16 values the CRC will cover.

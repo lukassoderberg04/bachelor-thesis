@@ -28,6 +28,21 @@ public static class Logger
         Console.WriteLine($"{getTimestamp()} INFO: {msg}");
     }
 
+    public static void WriteDashedLine()
+    {
+        Console.WriteLine("-----------------------------------------------");
+    }
+
+    public static void WriteText(string text)
+    {
+        Console.WriteLine(text);
+    }
+
+    public static void WriteEmptyLine()
+    {
+        Console.WriteLine();
+    }
+
     private static string getTimestamp()
     {
         return $"[{DateTime.Now.ToString("HH:mm:ss")}]";

@@ -88,34 +88,103 @@ public static class FtdiService
     }
 
     /// <summary>
-    /// Configures a connected device.
-    /// </summary>
-    public static bool ConfigureDeviceSetting()
-    {
-        throw new NotImplementedException();
-    }
-
-    /// <summary>
     /// Writes to PM1000 device's pipe. Returns true if it was successful.
     /// </summary>
     public static bool WriteToPipe(byte pipe, byte[] buffer)
     {
         UInt32 bytesTransfered = 0;
 
-        Logger.LogInfo($"Writing bytes to pipe: 0x{pipe:X2}.");
-
         var status = Ftdi.WritePipe(pipe, buffer, (UInt32)buffer.Length, ref bytesTransfered);
         
         if (status != FTDI.FT_STATUS.FT_OK)
         {
-            Logger.LogError($"Something went wrong when writing to the pipe! Wrote: {bytesTransfered} bytes.");
+            Logger.LogError($"Something went wrong when writing to the pipe! Wrote: {bytesTransfered} bytes. Status: {status.ToString()}.");
 
             return false;
         }
 
-        Logger.LogInfo("Successfully transmitted all bytes!");
+        return true;
+    }
+
+    /// <summary>
+    /// Reads bytes from a pipe. Returns true if it was successful.
+    /// </summary>
+    public static bool ReadFromPipe(byte pipe, byte[] buffer, UInt32 bytesToRead)
+    {
+        UInt32 bytesRead = 0;
+
+        var status = Ftdi.ReadPipe(pipe, buffer, bytesToRead, ref bytesRead);
+
+        if (status != FTDI.FT_STATUS.FT_OK)
+        {
+            Logger.LogError($"Something went wrong when reading from the pipe! Read: {bytesRead} bytes. Status: {status.ToString()}.");
+
+            Ftdi.AbortPipe(pipe);
+
+            return false;
+        }
+
+        Ftdi.AbortPipe(pipe);
 
         return true;
+    }
+
+    /// <summary>
+    /// Configures and restarts the device using the specified configuration object.
+    /// </summary>
+    public static bool SetConfigurationAndRestart(FTDI.FT_60XCONFIGURATION config)
+    {
+        Logger.LogInfo("Setting configuration of device and restarting...");
+
+        var status = Ftdi.SetChipConfiguration(config);
+
+        if (status != FTDI.FT_STATUS.FT_OK)
+        {
+            Logger.LogError($"Couldn't set the chip configuration! Status: {status.ToString()}.");
+
+            return false;
+        }
+
+        Logger.LogInfo("Successfully set the chip config!");
+
+        if (!CloseCommunication()) return false;
+
+        if (!OpenConnectionUsingSerialNumber(config.SerialNumber)) return false;
+
+        Logger.LogInfo("Successfully configured and restarted the device!");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Retrieves the configuration for the device.
+    /// </summary>
+    public static bool GetConfiguration(FTDI.FT_60XCONFIGURATION config)
+    {
+        Logger.LogInfo("Tries to retrieve the configuration for the opened device...");
+
+        var status = Ftdi.GetChipConfiguration(config);
+
+        if (status != FTDI.FT_STATUS.FT_OK)
+        {
+            Logger.LogError($"Couldn't retrieve the configuration from the device! Status: {status.ToString()}.");
+
+            return false;
+        }
+
+        Logger.LogInfo("Successfully retrieved the configuration for the device!");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Sets the notification callback! Make sure the notification callback are enabled in the config for the device!
+    /// </summary>
+    public static bool SetNotificationCallback(FTDI.FT_NOTIFICATION_CALLBACK_DATA callback)
+    {
+        var status = Ftdi.SetNotificationCallback(callback, IntPtr.Zero);
+
+        throw new NotImplementedException();
     }
 
     /// <summary>

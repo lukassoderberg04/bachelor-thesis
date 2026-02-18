@@ -1,19 +1,27 @@
-﻿namespace pm1000_streamer_service.PM1000;
+﻿using FTD3XXWU_NET;
+
+namespace pm1000_streamer_service.PM1000;
 
 /// <summary>
-/// The transmitter takes care of sending packages to the device.
+/// The transmitter takes care of sending and recieving packages to the device.
 /// </summary>
 public class Transmitter
 {
     /// <summary>
-    /// Tries to send a packet using the FTDI open connection. Returns true if successful.
+    /// Tries to send a packet using the FTDI open connection. Returns the packet if no timeout happened.
     /// </summary>
-    public bool SendPacket(Packet packet)
+    public Packet? SendPacket(Packet packet)
     {
         var buffer = packet.GetBytes();
 
-        var success = FtdiService.WriteToPipe(FtdiService.SEND_PIPE, buffer);
+        if(!FtdiService.WriteToPipe(FtdiService.SEND_PIPE, buffer)) return null;
 
-        return success;
+        /*
+            * Check if data is avaible, else just check until timeout.
+            * If avaible, read it and convert it to the correct packet.
+            * Return the packet.
+        */
+
+        throw new NotImplementedException();
     }
 }

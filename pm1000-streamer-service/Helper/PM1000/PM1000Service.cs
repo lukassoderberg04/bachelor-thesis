@@ -7,8 +7,6 @@ public static class PM1000Service
 {
     public static Transmitter Transmitter { get; } = new();
 
-    public static Reciever Reciever { get; } = new();
-
     /// <summary>
     /// Opens up communication with the PM1000 and initializes parameters for communication. Returns true if it was successful.
     /// </summary>
