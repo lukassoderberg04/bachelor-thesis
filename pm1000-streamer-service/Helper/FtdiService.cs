@@ -182,9 +182,20 @@ public static class FtdiService
     /// </summary>
     public static bool SetNotificationCallback(FTDI.FT_NOTIFICATION_CALLBACK_DATA callback)
     {
+        Logger.LogInfo("Trying to set the notification callback of the device!");
+
         var status = Ftdi.SetNotificationCallback(callback, IntPtr.Zero);
 
-        throw new NotImplementedException();
+        if (status != FTDI.FT_STATUS.FT_OK)
+        {
+            Logger.LogError($"Couldn't Set the notification callback! Status: {status.ToString()}.");
+
+            return false;
+        }
+
+        Logger.LogInfo("Successfully set the notification callback!");
+
+        return true;
     }
 
     /// <summary>
