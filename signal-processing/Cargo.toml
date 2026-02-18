@@ -6,4 +6,9 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.5.58", features = ["derive"] }
 ndarray = "0.17.2"
-scirs2 = "0.1.5"
+ndarray-stats = "0.7.0"
+num-complex = "0.4.6"
+ruviz = "0.1.4"
+scirs2 = "0.2.0"
+scirs2-fft = "0.2.0"
+scirs2-io = "0.2.0"
