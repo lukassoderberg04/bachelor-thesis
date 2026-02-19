@@ -1,6 +1,4 @@
-﻿using System.Net.Sockets;
-
-namespace pm1000_streamer_service.PM1000;
+﻿namespace pm1000_streamer_service.PM1000;
 
 /// <summary>
 /// The base class for the packets.
