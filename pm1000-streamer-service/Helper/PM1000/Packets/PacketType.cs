@@ -7,5 +7,6 @@ public enum PacketType
     Write,
     WriteResponse,
     Transfer,
-    TransferResponse
+    TransferResponse,
+    StokesSnapshot
 }
