@@ -1,5 +1,14 @@
+# Build outputs
+bin/
+obj/
+Debug/
+Release/
+
 # Visual Studio
 .vs/
+*.suo
+*.user
+*.sln.docstates
 
 # Windows
 Thumbs.db
@@ -9,6 +18,7 @@ $RECYCLE.BIN/
 
 # macOS
 .DS_Store
+Thumbs.db
 
 # JetBrains IDEs
 .idea/
