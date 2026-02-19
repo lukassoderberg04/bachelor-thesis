@@ -10,22 +10,16 @@ Release/
 *.user
 *.sln.docstates
 
-# NuGet
-packages/
-*.nupkg
-project.assets.json
-project.lock.json
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
+# macOS
 .DS_Store
 Thumbs.db
 
-# Other
-*.log
-*.cache
+# JetBrains IDEs
+.idea/
+*.iml

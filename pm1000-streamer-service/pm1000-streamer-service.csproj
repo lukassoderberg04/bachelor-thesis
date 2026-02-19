@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>pm1000_streamer_service</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="lib\FTD3XXWU.dll" />
+    <None Remove="lib\FTD3XXWU_NET.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="lib\FTD3XXWU.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="lib\FTD3XXWU_NET.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="FTD3XXWU_NET">
+      <HintPath>lib\FTD3XXWU_NET.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy /Y &quot;$(ProjectDir)lib\*.dll&quot; &quot;$(TargetDir)&quot;" />
+  </Target>
+
+</Project>

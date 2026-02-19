@@ -1,22 +1,113 @@
-# PM1000 Visualizer
-This program aims to visualize the stokes vector from the PM1000 device using a computer (running the application) plugged into the device (PM1000) using USB.
+# pm1000-visualizer
 
-## PM1000
-The PM1000 is a polarimeter device used in measuring all 4 stokes parameters at a sampling rate of 100 MHz. For further reading, check the [PM 1000 User Guide](Documents/PM1000_User_Guide.pdf).
+WPF application that visualizes real-time Stokes parameter data from the PM1000 polarimeter.  
+It receives data over UDP from `pm1000-streamer-service` and displays:
+
+- **Poincaré sphere** — 3D visualization of the polarization state with a fading trajectory trail
+- **Audio waveform** — extracted audio signal sent by Ludwig's signal processing module
+
+---
+
+## Architecture
+
+```
+PM1000 device
+     │  USB
+     ▼
+pm1000-streamer-service   (Lukas)
+     │  UDP :5000  Stokes packets
+     │  UDP :5001  Audio packets   ◄── Ludwig signal processor sends here
+     │  HTTP :5002 REST API
+     ▼
+pm1000-visualizer         (this project)
+```
+
+---
 
 ## Prerequisites
-This WPF application targets .NET 8.0 and the Windows 7 API. The project is generated using Visual Studio, hence highly recommended using that IDE for building and continuing developing this application.
+
+- .NET 8.0 SDK
+- Windows (WPF)
+- Visual Studio 2022 recommended
 
 ### NuGet packages
-Furthermore, there are some NuGet packages that needs to be installed in order for this project to build:
 
-* **ScottPlot for WPF** - Takes care of plotting graphs etc. You can read more about it [here](https://scottplot.net/).
+| Package                   | Purpose                     |
+| ------------------------- | --------------------------- |
+| `ScottPlot.WPF 5.1.57`    | Audio waveform plot         |
+| `HelixToolkit.Wpf 2.23.0` | 3D Poincaré sphere viewport |
 
-* **FTD2XX .NET** - Adds the correct .NET wrapper dll for communication with the device via USB.
+Packages are restored automatically by NuGet on first build. The `nuget.config` in the project root points to the correct feed.
 
-*Note:* All of these packages are exposed by relying on the nuget.config file in the project.
+---
 
-### Install drivers
-While the NuGet packages are a great start to be able to build the project, you'll still need to install FTDI drivers. You can find the [FTDI drivers installation guide](Documents/FTDI_Drivers_Installation_Guide__Windows_10_11.pdf) inside the documents folder.
+## Building & running
 
-*Note:* The type of driver needed needs to be checked... download both 2DXX (comes together with VPC) and 3DXX just in case.
+```
+cd pm1000-visualizer
+dotnet build
+dotnet run
+```
+
+Or open `pm1000-visualizer.sln` in Visual Studio and press **F5**.
+
+---
+
+## UDP packet format
+
+Both Stokes and audio packets share the same 10-byte header:
+
+| Bytes | Type     | Field                          |
+| ----- | -------- | ------------------------------ |
+| 0–3   | `uint32` | Sequence number                |
+| 4–7   | `uint32` | Sample rate (Hz)               |
+| 8–9   | `uint16` | Block size (number of samples) |
+
+Followed by samples:
+
+| Packet type | Port | Per-sample layout                              |
+| ----------- | ---- | ---------------------------------------------- |
+| Stokes      | 5000 | 5 × `float32` → S0, S1, S2, S3, DOP (20 bytes) |
+| Audio       | 5001 | 1 × `float32` → amplitude (4 bytes)            |
+
+All values little-endian. See `Communication/PacketDeserializer.cs` for the implementation.
+
+---
+
+## REST API (streamer)
+
+The visualizer can query the streamer on port 5002 via `Communication/StreamerApiClient.cs`:
+
+| Method | Endpoint      | Description                 |
+| ------ | ------------- | --------------------------- |
+| GET    | `/frequency`  | Laser light frequency in Hz |
+| GET    | `/samplerate` | Current sampling rate in Hz |
+| POST   | `/samplerate` | Set a new sampling rate     |
+
+---
+
+## Project structure
+
+```
+pm1000-visualizer/
+├── Communication/
+│   ├── StokeSample.cs          # Data model (S0–S3, DOP)
+│   ├── PacketDeserializer.cs   # Parses raw UDP bytes into typed packets
+│   ├── UdpListener.cs          # Background UDP receiver, fires events
+│   └── StreamerApiClient.cs    # REST client for streamer metadata
+├── MainWindow.xaml             # UI layout (3D viewport + audio plot)
+├── MainWindow.xaml.cs          # Main logic, visualization, test data generator
+├── Logger.cs                   # Console logging with timestamps and colors
+└── App.xaml / App.xaml.cs      # WPF application entry point
+```
+
+---
+
+## Test mode
+
+When `pm1000-streamer-service` is not running, the app generates synthetic data automatically:
+
+- **Stokes**: smooth orbital path around the Poincaré sphere
+- **Audio**: 440 Hz sine wave (A4)
+
+To disable test mode when integrating with Lukas's streamer, remove the `StartTestDataGenerator()` call in `Window_Loaded()`.
