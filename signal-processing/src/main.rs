@@ -1,3 +1,6 @@
+mod udp_sender;
+use udp_sender::AudioUdpSender;
+
 use std::error::Error;
 
 use ndarray::prelude::*;
@@ -101,9 +104,17 @@ fn main() {
 
     
 
-    // TODO! Convert the stokes vector into an audio sample
+    // Convert the extracted amplitudes (f64) to f32 audio samples.
+    let audio_samples: Vec<f32> = hp_amplitudes.iter().map(|&x| x as f32).collect();
 
-    //  TODO! Open output stream and send data
+    // Send the block to the visualizer on port 5001.
+    // In the streaming integration, call send_block() once per processing window
+    // instead of once for the whole recording — see Documents/integration-guide.md.
+    let mut sender = AudioUdpSender::new("127.0.0.1", sampling_rate as u32)
+        .expect("Failed to bind UDP socket");
+    sender
+        .send_block(&audio_samples)
+        .expect("Failed to send audio UDP packet");
 }
 
 fn static_pca(s: &ArrayView2<f64>) -> Result<Array1<f64>, Box<dyn Error>> {
