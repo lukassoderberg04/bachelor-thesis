@@ -5,6 +5,8 @@
 /// </summary>
 public static class PM1000Service
 {
+    private static readonly object sendPacketLock = new object();
+
     /// <summary>
     /// Opens up communication with the PM1000 and initializes parameters for communication. Returns true if it was successful.
     /// </summary>
@@ -31,15 +33,18 @@ public static class PM1000Service
     {
         var sendBuffer = packet.GetBytes();
 
-        if (!FtdiService.FlushPipe(FtdiService.READ_PIPE)) return null;
-
-        if (!FtdiService.WriteToPipe(FtdiService.SEND_PIPE, sendBuffer)) return null;
-
         var readBuffer = new byte[8];
 
-        if (!FtdiService.ReadFromPipe(FtdiService.READ_PIPE, readBuffer, (UInt32)readBuffer.Length)) return null;
-
         Packet readPacket;
+
+        lock (sendPacketLock)
+        {
+            if (!FtdiService.FlushPipe(FtdiService.READ_PIPE)) return null;
+
+            if (!FtdiService.WriteToPipe(FtdiService.SEND_PIPE, sendBuffer)) return null;
+
+            if (!FtdiService.ReadFromPipe(FtdiService.READ_PIPE, readBuffer, (UInt32)readBuffer.Length)) return null;
+        }
 
         switch (packet.GetPacketType())
         {
