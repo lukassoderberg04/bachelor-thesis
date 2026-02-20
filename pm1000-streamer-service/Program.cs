@@ -1,8 +1,10 @@
 ﻿using pm1000_streamer_service;
+using pm1000_streamer_service.API;
 using pm1000_streamer_service.PM1000;
 
 Logger.WriteDashedLine();
 Logger.WriteText("PM 1000 streamer service");
+Logger.WriteText("To stop the device, please press CTRL + C!");
 Logger.WriteDashedLine();
 
 Logger.WriteEmptyLine();
@@ -42,7 +44,14 @@ while (!hasSelectedDevice)
 
 PM1000Service.InitializeCommunication(devices[selectedDeviceIndex]);
 
-foreach (var pipeInfo in FtdiService.GetAllPipesInformation())
+CancellationTokenSource tokenSrc = new();
+
+// Set the CTRL + C handler to cancel all other processes.
+Console.CancelKeyPress += (object? sender, ConsoleCancelEventArgs e) => 
 {
-    Logger.WriteText($"[0x{pipeInfo.PipeId:X2}] Type: {pipeInfo.PipeType.ToString()} | Max packet size: {pipeInfo.MaximumPacketSize}");
-}
+    tokenSrc.Cancel();
+};
+
+Retriever.Start(tokenSrc.Token);
+
+API.Start(tokenSrc.Token);

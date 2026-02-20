@@ -23,14 +23,14 @@ public class StokesSnapshotPacket : Packet
         S2  = s2;
         S3  = s3;
         DOP = dop;
+        Time = Clock.GetMillisecondsFromStart();
 
         writeFloat(byteViewOfPayload, 0, s0);
         writeFloat(byteViewOfPayload, 4, s1);
         writeFloat(byteViewOfPayload, 8, s2);
         writeFloat(byteViewOfPayload, 12, s3);
         writeFloat(byteViewOfPayload, 16, dop);
-        // BinaryPrimitives.WriteUInt32LittleEndian(byteViewOfPayload.Slice(20), time);
-        // this.Time = 0;
+        BinaryPrimitives.WriteUInt32LittleEndian(byteViewOfPayload.Slice(20), Time);
     }
 
     /// <summary>

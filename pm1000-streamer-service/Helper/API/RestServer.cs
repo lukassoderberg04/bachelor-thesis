@@ -18,7 +18,7 @@ namespace pm1000_streamer_service.API
         /// </summary>
         public static Task Start(CancellationToken token)
         {
-            Logger.LogInfo("Starting REST server...");
+            Logger.LogInfo("Starting REST server on a different thread...");
 
             return Task.Run(() => runRestServer(token));
         }
