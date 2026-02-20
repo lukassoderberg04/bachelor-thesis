@@ -1,5 +1,6 @@
 ﻿using pm1000_streamer_service.API;
 using pm1000_streamer_service.PM1000;
+using NAudio.Wave;
 
 namespace pm1000_streamer_service;
 
@@ -9,6 +10,31 @@ namespace pm1000_streamer_service;
 /// </summary>
 public static class Retriever
 {
+    /// <summary>
+    /// Audio sample rate in Hz.
+    /// </summary>
+    private const int AUDIO_SAMPLE_RATE = 8000;
+
+    /// <summary>
+    /// The amount of bits per data measuring point.
+    /// </summary>
+    private const int BIT_DEPTH = 16;
+
+    /// <summary>
+    /// The size of the buffer in "milliseconds".
+    /// </summary>
+    private const int BUFFER_SIZE_IN_MS = 10;
+
+    /// <summary>
+    /// The configuration for the capture device!
+    /// </summary>
+    private static readonly WaveInEvent waveIn = new()
+    {
+        DeviceNumber       = 0, // Use the default mic device.
+        WaveFormat         = new WaveFormat(AUDIO_SAMPLE_RATE, BIT_DEPTH, 1),
+        BufferMilliseconds = BUFFER_SIZE_IN_MS // How many ms of audio the buffer will hold.
+    };
+
     /// <summary>
     /// The packets to send over to the PM1000.
     /// </summary>
@@ -51,10 +77,14 @@ public static class Retriever
     /// </summary>
     private static void retrieveLoop(CancellationToken token)
     {
+        startAudioRetrieval();
+
         while (!token.IsCancellationRequested)
         {
             retrieveRegisters();
         }
+
+        stopAudioRetrieval();
     }
 
     /// <summary>
@@ -89,5 +119,35 @@ public static class Retriever
         var dop = (float)readResponses[8].Data / dopResolution;
 
         DataProvider.StokesPacket = new StokesSnapshotPacket(s0, s1, s2, s3, dop);
+    }
+
+    /// <summary>
+    /// Retrieves the audio from the default mic.
+    /// </summary>
+    private static void startAudioRetrieval()
+    {
+        waveIn.DataAvailable += (s, e) =>
+        {
+            const float largestInt16Value = 32768f;
+
+            if (e.BytesRecorded < 2) return;
+
+            Int16 sample  = BitConverter.ToInt16(e.Buffer, 0);    // Read the first two bytes in the buffer as Int16.
+            var amplitude = Math.Abs(sample / largestInt16Value); // 0.0 <= audio sample <= 1.0!
+
+            DataProvider.AudioPacket = new AudioSnapshotPacket(amplitude);
+        };
+
+        waveIn.StartRecording();
+    }
+
+    /// <summary>
+    /// Stops the audio retrieval.
+    /// </summary>
+    private static void stopAudioRetrieval()
+    {
+        waveIn.StopRecording();
+
+        waveIn.Dispose();
     }
 }
