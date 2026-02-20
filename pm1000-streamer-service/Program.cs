@@ -47,7 +47,7 @@ PM1000Service.InitializeCommunication(devices[selectedDeviceIndex]);
 CancellationTokenSource tokenSrc = new();
 
 // Set the CTRL + C handler to cancel all other processes.
-Console.CancelKeyPress += (object? sender, ConsoleCancelEventArgs e) => 
+Console.CancelKeyPress += (s, e) => 
 {
     tokenSrc.Cancel();
 };
