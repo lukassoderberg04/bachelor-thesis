@@ -14,7 +14,10 @@ public static class PM1000Service
     {
         Logger.LogInfo("Tries to initialize communication with PM1000...");
 
-        if (!FtdiService.CloseCommunication()) return false;
+        if (FtdiService.CheckIfConnectionIsAlreadyOpen())
+        {
+            FtdiService.CloseCommunication();
+        }
 
         if (!FtdiService.OpenConnectionUsingSerialNumber(pm1000DeviceInfo.SerialNumber)) return false;
 

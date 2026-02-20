@@ -14,6 +14,8 @@ public class Transmitter
     {
         var buffer = packet.GetBytes();
 
+        if (!FtdiService.FlushPipe(FtdiService.READ_PIPE)) return null;
+
         if(!FtdiService.WriteToPipe(FtdiService.SEND_PIPE, buffer)) return null;
 
         /*

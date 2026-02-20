@@ -9,17 +9,28 @@ namespace pm1000_streamer_service.PM1000;
 /// </summary>
 public class StokesSnapshotPacket : Packet
 {
-    public StokesSnapshotPacket(float s0, float s1, float s2, float s3, float dop, UInt32 time) : base(12, PacketType.StokesSnapshot)
+    public readonly float S0, S1, S2, S3, DOP;
+
+    public readonly UInt32 Time;
+
+    public StokesSnapshotPacket(float s0, float s1, float s2, float s3, float dop) : base(12, PacketType.StokesSnapshot)
     {
         // Creates a view of bytes since the payload is of type UInt32.
         var byteViewOfPayload = MemoryMarshal.AsBytes(Payload.AsSpan());
+
+        S0  = s0;
+        S1  = s1;
+        S2  = s2;
+        S3  = s3;
+        DOP = dop;
 
         writeFloat(byteViewOfPayload, 0, s0);
         writeFloat(byteViewOfPayload, 4, s1);
         writeFloat(byteViewOfPayload, 8, s2);
         writeFloat(byteViewOfPayload, 12, s3);
         writeFloat(byteViewOfPayload, 16, dop);
-        BinaryPrimitives.WriteUInt32LittleEndian(byteViewOfPayload.Slice(20), time);
+        // BinaryPrimitives.WriteUInt32LittleEndian(byteViewOfPayload.Slice(20), time);
+        // this.Time = 0;
     }
 
     /// <summary>
@@ -37,5 +48,5 @@ public class StokesSnapshotPacket : Packet
     /// <summary>
     /// Returns a default value for this packet.
     /// </summary>
-    public static StokesSnapshotPacket Default() { return new StokesSnapshotPacket(0, 0, 0, 0, 0, 0); }
+    public static StokesSnapshotPacket Default() { return new StokesSnapshotPacket(0, 0, 0, 0, 0); }
 }

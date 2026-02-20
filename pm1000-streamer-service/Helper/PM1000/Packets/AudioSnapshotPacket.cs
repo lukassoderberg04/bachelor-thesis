@@ -5,13 +5,13 @@
 /// </summary>
 public class AudioSnapshotPacket : Packet
 {
-    public AudioSnapshotPacket(float amplitude, UInt32 time) : base(4, PacketType.StokesSnapshot)
+    public AudioSnapshotPacket(float amplitude) : base(4, PacketType.StokesSnapshot)
     {
-
+        // Time value (4 bytes).
     }
 
     /// <summary>
     /// Returns the default packet.
     /// </summary>
-    public static AudioSnapshotPacket Default() { return new AudioSnapshotPacket(0, 0); }
+    public static AudioSnapshotPacket Default() { return new AudioSnapshotPacket(0); }
 }
