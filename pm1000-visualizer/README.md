@@ -43,6 +43,7 @@ pm1000-visualizer (this project)
 ### Page 1: Pre-Connection
 
 Configure before measurement:
+
 - **Streamer IP** (default `127.0.0.1`)
 - **API Port** (default `5003`) — REST endpoint for device info
 - **Stokes Port** (default `5000`) — UDP for Stokes parameters (S0, S1, S2, S3, DOP)
@@ -58,23 +59,27 @@ Click **Connect** to proceed to the Live page.
 Real-time monitoring:
 
 **Left panel: Poincaré Sphere**
+
 - 3D visualization of normalized Stokes vectors (S1, S2, S3) on unit sphere
 - Red-to-gray fading trail showing recent measurement history
 - **Trail ✓** checkbox to toggle trail visibility
 - **Reset View** button to recenter camera
 
 **Right panel: Stokes Readout** (updated every packet)
+
 - **Power** — S0 in µW (microwatts)
 - **S1, S2, S3** — Normalized Stokes parameters (−1 to +1)
 - **DOP** — Degree of polarization as percentage
 - **Polarization** — Human-readable label (Linear, Circular, Elliptical, Unpolarized)
 
 **Center: Controls**
+
 - **Normalized/Raw** — Toggle between normalized and raw Stokes (Raw is a stretch goal; currently always normalized)
 - **Trail ✓** — Show/hide point trail on sphere
 - **❌ STOP** — End measurement and go to Post page
 
 **Bottom two panels: Audio Waveforms**
+
 - **Processed Audio** (port 5002)
   - Graph/Spec buttons (Spec is placeholder)
   - **Overlay Reference** — Toggle raw audio overlay (red) on processed plot (blue)
@@ -84,6 +89,7 @@ Real-time monitoring:
 All audio displays are rolling 2-second windows at the packet sample rate.
 
 **Duration timer** (if fixed):
+
 - Auto-transitions to Post page when time expires
 - Otherwise user controls via **STOP** button
 
@@ -92,10 +98,12 @@ All audio displays are rolling 2-second windows at the packet sample rate.
 Playback and export:
 
 **Save buttons** (top)
+
 - **Save All to Folder…** — Creates timestamped subfolder with all data
 - **Save Stokes CSV**, **Save Raw Audio**, **Save Processed Audio** — Individual file saves
 
 **Folder structure for "Save All":**
+
 ```
 Measurements/2026-02-20_14-35-22/
 ├── stokes.csv              (100 ms intervals: timestamp_ms, S0_µW, S1, S2, S3, DOP)
@@ -104,6 +112,7 @@ Measurements/2026-02-20_14-35-22/
 ```
 
 **Poincaré Playback**
+
 - Visualizes the recorded trajectory with 40-point fading trail
 - **▶ Play / ⏸ Pause** — Playback controls
 - **⏹ Stop** — Reset to start
@@ -111,6 +120,7 @@ Measurements/2026-02-20_14-35-22/
 - Time display: `0:00 / 5:23` format
 
 **Audio playback** (independent)
+
 - **Processed Audio** player — controls and current status
 - **Raw Reference Audio** player — side-by-side for comparison
 - MediaElement (WPF built-in) for WAV playback
@@ -153,6 +163,7 @@ Output: `bin/Debug/net8.0-windows/pm1000-visualizer.exe`
 ## Test Mode
 
 Enable **Test Mode** on the Pre-Connection page. The app will:
+
 1. Ignore UDP listeners — use internal `TestDataGenerator` instead
 2. Send synthetic packets to `localhost` on all 3 ports
 3. Generate:
@@ -168,6 +179,7 @@ Enable **Test Mode** on the Pre-Connection page. The app will:
 ## Data Formats
 
 ### Stokes CSV (100 ms downsampled)
+
 ```
 timestamp_ms,S0_uW,S1,S2,S3,DOP
 0,15.2,0.045,-0.123,0.067,0.972
@@ -176,6 +188,7 @@ timestamp_ms,S0_uW,S1,S2,S3,DOP
 ```
 
 ### Audio WAV
+
 - Format: PCM 16-bit signed, mono
 - Sample rate: configured from streamer (typically 16 kHz)
 - Amplitude range: −1.0 to +1.0 (clipped to [−32768, +32767] on save)
@@ -256,9 +269,10 @@ pm1000-visualizer/
 ✅ **Test mode** — offline testing with synthetic data  
 ✅ **Thread-safe recording** — packets received on background threads  
 ✅ **Dark UI theme** — optimized for lab environment  
-✅ **Configurable ports** — IP + 4 ports (1 REST + 3 UDP) user-selectable  
+✅ **Configurable ports** — IP + 4 ports (1 REST + 3 UDP) user-selectable
 
 ### Stretch goals (not yet implemented)
+
 - Raw (non-normalized) Stokes display
 - Spectrogram view for audio
 - Synchronized Poincaré ↔ audio playback
@@ -268,14 +282,17 @@ pm1000-visualizer/
 ## Troubleshooting
 
 ### App freezes
+
 Check the Console output (attached to `dotnet run`). UDP listener errors will be logged as warnings.
 
 ### No packets received
+
 - Verify streamer is running on correct IP/port
 - Check firewall allows UDP inbound on ports 5000–5002
 - Enable **Test Mode** to verify app logic works
 
 ### Cannot save files
+
 Check Windows write permissions on the target folder. Temp files are in `%TEMP%\PM1000\<guid>`.
 
 ---
@@ -294,7 +311,8 @@ Check Windows write permissions on the target folder. Temp files are in `%TEMP%\
 ## License
 
 © 2026 [Your Institution]. See bundled FTDI driver documentation for third-party requirements.
-└── App.xaml / App.xaml.cs      # WPF application entry point
+└── App.xaml / App.xaml.cs # WPF application entry point
+
 ```
 
 ---
@@ -307,3 +325,4 @@ When `pm1000-streamer-service` is not running, the app generates synthetic data 
 - **Audio**: 440 Hz sine wave (A4)
 
 To disable test mode when integrating with Lukas's streamer, remove the `StartTestDataGenerator()` call in `Window_Loaded()`.
+```

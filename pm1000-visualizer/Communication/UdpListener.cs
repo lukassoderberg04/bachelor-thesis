@@ -78,29 +78,29 @@ public class UdpListener : IDisposable
                 switch (channel)
                 {
                     case Channel.Stokes:
-                    {
-                        var pkt = PacketDeserializer.TryDeserializeStokes(data);
-                        if (pkt == null) continue;
-                        CheckSequence(pkt.SequenceNr, ref _lastStokesSeq);
-                        StokesReceived?.Invoke(pkt);
-                        break;
-                    }
+                        {
+                            var pkt = PacketDeserializer.TryDeserializeStokes(data);
+                            if (pkt == null) continue;
+                            CheckSequence(pkt.SequenceNr, ref _lastStokesSeq);
+                            StokesReceived?.Invoke(pkt);
+                            break;
+                        }
                     case Channel.RawAudio:
-                    {
-                        var pkt = PacketDeserializer.TryDeserializeAudio(data);
-                        if (pkt == null) continue;
-                        CheckSequence(pkt.SequenceNr, ref _lastRawAudioSeq);
-                        RawAudioReceived?.Invoke(pkt);
-                        break;
-                    }
+                        {
+                            var pkt = PacketDeserializer.TryDeserializeAudio(data);
+                            if (pkt == null) continue;
+                            CheckSequence(pkt.SequenceNr, ref _lastRawAudioSeq);
+                            RawAudioReceived?.Invoke(pkt);
+                            break;
+                        }
                     case Channel.ProcessedAudio:
-                    {
-                        var pkt = PacketDeserializer.TryDeserializeAudio(data);
-                        if (pkt == null) continue;
-                        CheckSequence(pkt.SequenceNr, ref _lastProcessedAudioSeq);
-                        ProcessedAudioReceived?.Invoke(pkt);
-                        break;
-                    }
+                        {
+                            var pkt = PacketDeserializer.TryDeserializeAudio(data);
+                            if (pkt == null) continue;
+                            CheckSequence(pkt.SequenceNr, ref _lastProcessedAudioSeq);
+                            ProcessedAudioReceived?.Invoke(pkt);
+                            break;
+                        }
                 }
             }
             catch (ObjectDisposedException) { break; }
