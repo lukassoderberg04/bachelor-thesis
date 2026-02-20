@@ -23,10 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NAudio" Version="2.2.1" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Reference Include="FTD3XXWU_NET">
       <HintPath>lib\FTD3XXWU_NET.dll</HintPath>
     </Reference>
