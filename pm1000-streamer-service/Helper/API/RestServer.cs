@@ -62,6 +62,12 @@ namespace pm1000_streamer_service.API
                     * Close connection.
                 */
 
+                /*
+                    * [GET]  /frequency  => Laser light frequency in Hz.
+                    * [GET]  /samplerate => Current sampling rate in Hz.
+                    * [POST] /samplerate => Set a new sampling rate.
+                */
+
                 throw new NotImplementedException();
             }
         }

@@ -54,4 +54,4 @@ Console.CancelKeyPress += (object? sender, ConsoleCancelEventArgs e) =>
 
 Retriever.Start(tokenSrc.Token);
 
-API.Start(tokenSrc.Token);
+API.Start(tokenSrc.Token, enableRest: false);
