@@ -5,7 +5,7 @@
 /// </summary>
 public class WriteResponsePacket : Packet
 {
-    public WriteResponsePacket() : base(0, PacketType.NotImplemented)
+    public WriteResponsePacket(byte[] bytes) : base(0, PacketType.NotImplemented)
     {
         throw new NotImplementedException();
     }

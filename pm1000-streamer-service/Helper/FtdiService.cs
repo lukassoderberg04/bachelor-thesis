@@ -183,6 +183,13 @@ public static class FtdiService
 
         var status = Ftdi.ReadPipe(pipe, buffer, bytesToRead, ref bytesRead);
 
+        if (status == FTDI.FT_STATUS.FT_TIMEOUT)
+        {
+            Logger.LogWarning($"A timeout for reading {bytesToRead} bytes occurred on pipe: 0x{pipe:X2}.");
+
+            return false;
+        }
+
         if (status != FTDI.FT_STATUS.FT_OK)
         {
             Logger.LogError($"Something went wrong when reading from the pipe! Read: {bytesRead} bytes. Status: {status.ToString()}.");
@@ -192,7 +199,7 @@ public static class FtdiService
             return false;
         }
 
-        Ftdi.AbortPipe(pipe);
+        Ftdi.FlushPipe(pipe);
 
         return true;
     }

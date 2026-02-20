@@ -1,6 +1,4 @@
-﻿using FTD3XXWU_NET;
-
-namespace pm1000_streamer_service.PM1000;
+﻿namespace pm1000_streamer_service.PM1000;
 
 /// <summary>
 /// The transmitter takes care of sending and recieving packages to the device.
@@ -12,18 +10,33 @@ public class Transmitter
     /// </summary>
     public Packet? SendPacket(Packet packet)
     {
-        var buffer = packet.GetBytes();
+        var sendBuffer = packet.GetBytes();
 
         if (!FtdiService.FlushPipe(FtdiService.READ_PIPE)) return null;
 
-        if(!FtdiService.WriteToPipe(FtdiService.SEND_PIPE, buffer)) return null;
+        if (!FtdiService.WriteToPipe(FtdiService.SEND_PIPE, sendBuffer)) return null;
 
-        /*
-            * Check if data is avaible, else just check until timeout.
-            * If avaible, read it and convert it to the correct packet.
-            * Return the packet.
-        */
+        var readBuffer = new byte[8];
 
-        throw new NotImplementedException();
+        if (!FtdiService.ReadFromPipe(FtdiService.READ_PIPE, readBuffer, (UInt32)readBuffer.Length)) return null;
+
+        Packet readPacket;
+
+        switch (packet.GetPacketType())
+        {
+            case PacketType.Read:
+                readPacket = new ReadResponsePacket(readBuffer);
+                break;
+
+            case PacketType.Write:
+                readPacket = new WriteResponsePacket(readBuffer);
+                break;
+
+            default:
+                readPacket = new ArbitraryPacket(readBuffer);
+                break;
+        }
+
+        return readPacket;
     }
 }
