@@ -1,0 +1,143 @@
+<UserControl x:Class="pm1000_visualizer.Pages.PostPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:h="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
+             Background="#FF28292B">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>         <!-- Header + save -->
+            <RowDefinition Height="Auto"/>         <!-- Summary -->
+            <RowDefinition Height="3*"/>           <!-- Poincaré playback -->
+            <RowDefinition Height="*"/>            <!-- Audio players -->
+            <RowDefinition Height="Auto"/>         <!-- New Measurement -->
+        </Grid.RowDefinitions>
+
+        <!-- ═══ Row 0: Header & save buttons ═══════════════════════════════ -->
+        <StackPanel Margin="0,0,0,8">
+            <TextBlock Text="PM1000 Post" FontSize="20" FontWeight="Bold" Foreground="White"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                <Button Content="💾  Save All to Folder…"
+                        Style="{StaticResource AccentButton}"
+                        FontSize="13" Padding="14,7"
+                        Click="SaveAll_Click"/>
+                <Button Content="Save Stokes CSV"
+                        Style="{StaticResource DarkButton}"
+                        Margin="10,0,0,0" FontSize="12" Padding="10,6"
+                        Click="SaveStokes_Click"/>
+                <Button Content="Save Raw Audio"
+                        Style="{StaticResource DarkButton}"
+                        Margin="6,0,0,0" FontSize="12" Padding="10,6"
+                        Click="SaveRawAudio_Click"/>
+                <Button Content="Save Processed Audio"
+                        Style="{StaticResource DarkButton}"
+                        Margin="6,0,0,0" FontSize="12" Padding="10,6"
+                        Click="SaveProcessedAudio_Click"/>
+            </StackPanel>
+
+            <TextBlock x:Name="SaveStatusText"
+                       Foreground="#FF90EE90" FontSize="12"
+                       Margin="0,6,0,0"
+                       Visibility="Collapsed"/>
+        </StackPanel>
+
+        <!-- ═══ Row 1: Summary info ════════════════════════════════════════ -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Duration: " Foreground="#FFAAAAAA"/>
+            <TextBlock x:Name="DurationText" Foreground="White"/>
+            <TextBlock Text="  │  Stokes samples: " Foreground="#FFAAAAAA" Margin="16,0,0,0"/>
+            <TextBlock x:Name="StokesCountText" Foreground="White"/>
+            <TextBlock Text="  │  Raw audio: " Foreground="#FFAAAAAA" Margin="16,0,0,0"/>
+            <TextBlock x:Name="RawCountText" Foreground="White"/>
+            <TextBlock Text="  │  Processed audio: " Foreground="#FFAAAAAA" Margin="16,0,0,0"/>
+            <TextBlock x:Name="ProcessedCountText" Foreground="White"/>
+        </StackPanel>
+
+        <!-- ═══ Row 2: Poincaré playback ═══════════════════════════════════ -->
+        <Border Grid.Row="2" BorderThickness="1" BorderBrush="#FF555555" CornerRadius="4" Margin="0,0,0,6">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Poincaré Playback" Foreground="White"
+                           FontWeight="Bold" Margin="10,6"/>
+
+                <h:HelixViewport3D x:Name="PlaybackView" Grid.Row="1"
+                                   ShowCoordinateSystem="True"
+                                   CoordinateSystemLabelForeground="White"/>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10,6">
+                    <Button x:Name="PlayBtn" Content="▶  Play"
+                            Style="{StaticResource DarkButton}" FontSize="12" Padding="10,5"
+                            Click="Play_Click"/>
+                    <Button Content="⏹  Stop"
+                            Style="{StaticResource DarkButton}" FontSize="12" Padding="10,5"
+                            Margin="6,0" Click="StopPlayback_Click"/>
+                    <Slider x:Name="PlaybackSlider" Width="350"
+                            VerticalAlignment="Center" Margin="10,0"
+                            ValueChanged="PlaybackSlider_ValueChanged"/>
+                    <TextBlock x:Name="PlaybackTimeText" Text="0:00 / 0:00"
+                               Foreground="White" VerticalAlignment="Center" Margin="8,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══ Row 3: Audio players ═══════════════════════════════════════ -->
+        <Grid Grid.Row="3" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Processed player -->
+            <Border BorderThickness="1" BorderBrush="#FF555555" CornerRadius="4">
+                <StackPanel Margin="12,8">
+                    <TextBlock Text="Processed Audio" Foreground="White" FontWeight="Bold" Margin="0,0,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="PlayProcessedBtn" Content="▶"
+                                Style="{StaticResource DarkButton}" FontSize="11" Padding="10,4"
+                                Click="PlayProcessed_Click"/>
+                        <Button Content="⏹"
+                                Style="{StaticResource DarkButton}" FontSize="11" Padding="10,4"
+                                Margin="5,0" Click="StopProcessed_Click"/>
+                        <TextBlock x:Name="ProcessedStatusText" Text="Ready"
+                                   Foreground="#FFAAAAAA" VerticalAlignment="Center" Margin="10,0"/>
+                    </StackPanel>
+                    <MediaElement x:Name="ProcessedMedia" LoadedBehavior="Manual"
+                                  UnloadedBehavior="Manual" Volume="1"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Raw player -->
+            <Border Grid.Column="2" BorderThickness="1" BorderBrush="#FF555555" CornerRadius="4">
+                <StackPanel Margin="12,8">
+                    <TextBlock Text="Raw Reference Audio" Foreground="White" FontWeight="Bold" Margin="0,0,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="PlayRawBtn" Content="▶"
+                                Style="{StaticResource DarkButton}" FontSize="11" Padding="10,4"
+                                Click="PlayRaw_Click"/>
+                        <Button Content="⏹"
+                                Style="{StaticResource DarkButton}" FontSize="11" Padding="10,4"
+                                Margin="5,0" Click="StopRaw_Click"/>
+                        <TextBlock x:Name="RawStatusText" Text="Ready"
+                                   Foreground="#FFAAAAAA" VerticalAlignment="Center" Margin="10,0"/>
+                    </StackPanel>
+                    <MediaElement x:Name="RawMedia" LoadedBehavior="Manual"
+                                  UnloadedBehavior="Manual" Volume="1"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ═══ Row 4: New Measurement ═════════════════════════════════════ -->
+        <Button Grid.Row="4" Content="New Measurement"
+                Style="{StaticResource AccentButton}"
+                FontSize="14" Padding="20,9"
+                HorizontalAlignment="Center"
+                Margin="0,4,0,0"
+                Click="NewMeasurement_Click"/>
+    </Grid>
+</UserControl>

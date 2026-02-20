@@ -5,78 +5,106 @@ using pm1000_visualizer;
 namespace pm1000_visualizer.Communication;
 
 /// <summary>
-/// Listens for incoming UDP data and fires events when packets arrive.
+/// Listens for incoming UDP data on three ports and fires typed events.
 ///
-///   Port 5000 → Stokes raw data   (from Lukas streamer-service)
-///   Port 5001 → Processed audio   (from Ludwig signal processing)
+///   Port 5000 → Stokes data        (from streamer-service)
+///   Port 5001 → Raw audio          (from streamer-service microphone)
+///   Port 5002 → Processed audio    (from signal-processing)
 ///
-/// Usage:
-///   var listener = new UdpListener();
-///   listener.StokesReceived += packet => { /* update Poincaré plot */ };
-///   listener.AudioReceived  += packet => { /* update audio waveform */ };
-///   listener.Start();
-///   ...  
-///   listener.Stop();
+/// All ports are configurable via the constructor.
 /// </summary>
 public class UdpListener : IDisposable
 {
-    public const int STOKES_PORT = 5000;
-    public const int AUDIO_PORT = 5001;
+    public int StokesPort { get; }
+    public int RawAudioPort { get; }
+    public int ProcessedAudioPort { get; }
 
     private UdpClient? _stokesClient;
-    private UdpClient? _audioClient;
-    private bool _running = false;
+    private UdpClient? _rawAudioClient;
+    private UdpClient? _processedAudioClient;
+    private bool _running;
 
     public event Action<StokesPacket>? StokesReceived;
-    public event Action<AudioPacket>? AudioReceived;
+    public event Action<AudioPacket>? RawAudioReceived;
+    public event Action<AudioPacket>? ProcessedAudioReceived;
     public event Action<uint, uint>? PacketDropped; // (expected, got)
 
     private uint _lastStokesSeq = uint.MaxValue;
-    private uint _lastAudioSeq = uint.MaxValue;
+    private uint _lastRawAudioSeq = uint.MaxValue;
+    private uint _lastProcessedAudioSeq = uint.MaxValue;
+
+    public UdpListener(int stokesPort = 5000, int rawAudioPort = 5001, int processedAudioPort = 5002)
+    {
+        StokesPort = stokesPort;
+        RawAudioPort = rawAudioPort;
+        ProcessedAudioPort = processedAudioPort;
+    }
 
     public void Start()
     {
         if (_running) return;
         _running = true;
-        _stokesClient = new UdpClient(new IPEndPoint(IPAddress.Any, STOKES_PORT));
-        _audioClient = new UdpClient(new IPEndPoint(IPAddress.Any, AUDIO_PORT));
-        Task.Run(() => ReceiveLoop(_stokesClient, isStokes: true));
-        Task.Run(() => ReceiveLoop(_audioClient, isStokes: false));
-        Logger.LogInfo($"UDP listener started (Stokes:{STOKES_PORT}, Audio:{AUDIO_PORT}).");
+
+        _stokesClient = new UdpClient(new IPEndPoint(IPAddress.Any, StokesPort));
+        _rawAudioClient = new UdpClient(new IPEndPoint(IPAddress.Any, RawAudioPort));
+        _processedAudioClient = new UdpClient(new IPEndPoint(IPAddress.Any, ProcessedAudioPort));
+
+        Task.Run(() => ReceiveLoop(_stokesClient, Channel.Stokes));
+        Task.Run(() => ReceiveLoop(_rawAudioClient, Channel.RawAudio));
+        Task.Run(() => ReceiveLoop(_processedAudioClient, Channel.ProcessedAudio));
+
+        Logger.LogInfo($"UDP listener started (Stokes:{StokesPort}, RawAudio:{RawAudioPort}, ProcessedAudio:{ProcessedAudioPort}).");
     }
 
     public void Stop()
     {
         _running = false;
         _stokesClient?.Close();
-        _audioClient?.Close();
+        _rawAudioClient?.Close();
+        _processedAudioClient?.Close();
         Logger.LogInfo("UDP listener stopped.");
     }
 
-    private async Task ReceiveLoop(UdpClient client, bool isStokes)
+    private enum Channel { Stokes, RawAudio, ProcessedAudio }
+
+    private async Task ReceiveLoop(UdpClient client, Channel channel)
     {
         while (_running)
         {
             try
             {
                 var data = (await client.ReceiveAsync()).Buffer;
-                if (isStokes)
+
+                switch (channel)
                 {
-                    var packet = PacketDeserializer.TryDeserializeStokes(data);
-                    if (packet == null) continue;
-                    CheckSequence(packet.SequenceNr, ref _lastStokesSeq);
-                    StokesReceived?.Invoke(packet);
-                }
-                else
-                {
-                    var packet = PacketDeserializer.TryDeserializeAudio(data);
-                    if (packet == null) continue;
-                    CheckSequence(packet.SequenceNr, ref _lastAudioSeq);
-                    AudioReceived?.Invoke(packet);
+                    case Channel.Stokes:
+                    {
+                        var pkt = PacketDeserializer.TryDeserializeStokes(data);
+                        if (pkt == null) continue;
+                        CheckSequence(pkt.SequenceNr, ref _lastStokesSeq);
+                        StokesReceived?.Invoke(pkt);
+                        break;
+                    }
+                    case Channel.RawAudio:
+                    {
+                        var pkt = PacketDeserializer.TryDeserializeAudio(data);
+                        if (pkt == null) continue;
+                        CheckSequence(pkt.SequenceNr, ref _lastRawAudioSeq);
+                        RawAudioReceived?.Invoke(pkt);
+                        break;
+                    }
+                    case Channel.ProcessedAudio:
+                    {
+                        var pkt = PacketDeserializer.TryDeserializeAudio(data);
+                        if (pkt == null) continue;
+                        CheckSequence(pkt.SequenceNr, ref _lastProcessedAudioSeq);
+                        ProcessedAudioReceived?.Invoke(pkt);
+                        break;
+                    }
                 }
             }
             catch (ObjectDisposedException) { break; }
-            catch (Exception ex) { Logger.LogError($"UDP receive error: {ex.Message}"); }
+            catch (Exception ex) { Logger.LogError($"UDP receive error ({channel}): {ex.Message}"); }
         }
     }
 
