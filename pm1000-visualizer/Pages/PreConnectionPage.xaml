@@ -43,16 +43,16 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Text="Streamer IP"
-                            Grid.Row="0"
-                            Foreground="#FFCCCCCC"
-                            VerticalAlignment="Center"
-                            Margin="0,0,0,6"/>
+                               Grid.Row="0"
+                               Foreground="#FFCCCCCC"
+                               VerticalAlignment="Center"
+                               Margin="0,0,0,6"/>
                     <TextBox   x:Name="IpBox"
-                            Grid.Row="0"
-                            Grid.Column="1"
-                            Text="127.0.0.1"
+                               Grid.Row="0"
+                               Grid.Column="1"
+                               Text="127.0.0.1"
                                Style="{StaticResource DarkTextBox}"
-                            Margin="0,0,0,6"/>
+                               Margin="0,0,0,6"/>
                 </Grid>
 
                 <!-- ── UDP Ports ────────────────────────────── -->
@@ -74,40 +74,40 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Text="Stokes"
-                            Grid.Row="0"
-                            Foreground="#FFCCCCCC"
-                            VerticalAlignment="Center"
-                            Margin="0,0,0,6"/>
+                               Grid.Row="0"
+                               Foreground="#FFCCCCCC"
+                               VerticalAlignment="Center"
+                               Margin="0,0,0,6"/>
                     <TextBox   x:Name="StokesPortBox"
-                            Grid.Row="0"
-                            Grid.Column="1"
-                            Text="5000"
+                               Grid.Row="0"
+                               Grid.Column="1"
+                               Text="5000"
                                Style="{StaticResource DarkTextBox}"
-                            Margin="0,0,0,6"/>
+                               Margin="0,0,0,6"/>
 
                     <TextBlock Text="Raw Audio"
-                            Grid.Row="1"
-                            Foreground="#FFCCCCCC"
-                            VerticalAlignment="Center"
-                            Margin="0,0,0,6"/>
+                               Grid.Row="1"
+                               Foreground="#FFCCCCCC"
+                               VerticalAlignment="Center"
+                               Margin="0,0,0,6"/>
                     <TextBox   x:Name="RawPortBox"
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            Text="5001"
+                               Grid.Row="1"
+                               Grid.Column="1"
+                               Text="5001"
                                Style="{StaticResource DarkTextBox}"
-                            Margin="0,0,0,6"/>
+                               Margin="0,0,0,6"/>
 
                     <TextBlock Text="Processed Audio"
-                            Grid.Row="2"
-                            Foreground="#FFCCCCCC"
-                            VerticalAlignment="Center"
-                            Margin="0,0,0,6"/>
+                               Grid.Row="2"
+                               Foreground="#FFCCCCCC"
+                               VerticalAlignment="Center"
+                               Margin="0,0,0,6"/>
                     <TextBox   x:Name="ProcPortBox"
-                            Grid.Row="2"
-                            Grid.Column="1"
-                            Text="5002"
+                               Grid.Row="2"
+                               Grid.Column="1"
+                               Text="5002"
                                Style="{StaticResource DarkTextBox}"
-                            Margin="0,0,0,6"/>
+                               Margin="0,0,0,6"/>
                 </Grid>
 
                 <!-- ── Duration ─────────────────────────────── -->
