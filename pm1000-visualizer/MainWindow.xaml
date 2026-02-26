@@ -3,85 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:ScottPlot="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
-        xmlns:h="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
-        xmlns:local="clr-namespace:pm1000_visualizer"
         mc:Ignorable="d"
-        Loaded="Window_Loaded"
-        Closing="Window_Closing"
         Title="PM1000 Visualizer"
-        Height="600"
-        Width="1000"
-        Background="#FF28292B">
-    <Grid Margin="15">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-
-        <!-- Info panel -->
-        <StackPanel Grid.Row="0"
-                    Orientation="Vertical"
-                    Margin="0,0,0,15">
-            <TextBlock Text="PM1000 Polarimeter Visualizer"
-                       FontSize="16"
-                       Foreground="White"
-                       FontWeight="Bold"/>
-            <TextBlock x:Name="StatusText"
-                       Text="Listening for data..."
-                       Foreground="#FF90EE90"
-                       Margin="0,5,0,0"
-                       FontSize="12"/>
-        </StackPanel>
-
-        <!-- Plots side-by-side -->
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- Stokes plot -->
-            <Border Grid.Column="0"
-                    BorderThickness="1"
-                    BorderBrush="#FF555555"
-                    Margin="0,0,7,0"
-                    CornerRadius="4">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="Poincaré Sphere (3D)"
-                               Foreground="White"
-                               Margin="10,8,10,0"
-                               FontWeight="Bold"/>
-                    <h:HelixViewport3D x:Name="StokesPlot3D"
-                                       Grid.Row="1"
-                                       ShowCoordinateSystem="True"
-                                       CoordinateSystemLabelForeground="White"/>
-                </Grid>
-            </Border>
-
-            <!-- Audio plot -->
-            <Border Grid.Column="1"
-                    BorderThickness="1"
-                    BorderBrush="#FF555555"
-                    Margin="7,0,0,0"
-                    CornerRadius="4">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="Extracted Audio"
-                               Foreground="White"
-                               Margin="10,8,10,0"
-                               FontWeight="Bold"/>
-                    <ScottPlot:WpfPlot x:Name="AudioPlot"
-                                       Grid.Row="1"/>
-                </Grid>
-            </Border>
-        </Grid>
+        Height="900"
+        Width="1200"
+        MinHeight="700"
+        MinWidth="900"
+        Background="#FF28292B"
+        Closing="Window_Closing">
+    <Grid>
+        <ContentControl x:Name="PageContent"/>
     </Grid>
 </Window>
