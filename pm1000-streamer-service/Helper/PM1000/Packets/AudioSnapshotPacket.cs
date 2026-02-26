@@ -1,6 +1,5 @@
 ﻿using System.Buffers.Binary;
 using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics.Arm;
 
 namespace pm1000_streamer_service.PM1000;
 
