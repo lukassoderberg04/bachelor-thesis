@@ -10,10 +10,12 @@ namespace pm1000_streamer_service.API;
 public static class API
 {
     /// <summary>
-    /// Starts the API services.
+    /// Starts the API services specified.
     /// </summary>
-    public static void Start(CancellationToken token)
+    public static void Start(CancellationToken token, bool enableAudio = true, bool enableStokes = true, bool enableRest = true)
     {
-        throw new NotImplementedException();
+        if (enableAudio)  AudioStreamer.Start(token);
+        if (enableStokes) StokesStreamer.Start(token);
+        if (enableRest)   RestServer.Start(token);
     }
 }

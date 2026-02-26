@@ -18,7 +18,7 @@ namespace pm1000_streamer_service.API
         /// </summary>
         public static Task Start(CancellationToken token)
         {
-            Logger.LogInfo("Starting REST server...");
+            Logger.LogInfo("Starting REST server on a different thread...");
 
             return Task.Run(() => runRestServer(token));
         }
@@ -60,6 +60,12 @@ namespace pm1000_streamer_service.API
                     * Check what type of request it was.
                     * Send bytes in correspondance to the request to the sender.
                     * Close connection.
+                */
+
+                /*
+                    * [GET]  /frequency  => Laser light frequency in Hz.
+                    * [GET]  /samplerate => Current sampling rate in Hz.
+                    * [POST] /samplerate => Set a new sampling rate.
                 */
 
                 throw new NotImplementedException();

@@ -16,6 +16,51 @@ public static class FtdiService
     public static FTDI Ftdi { get; } = new();
 
     /// <summary>
+    /// Wraps around a Ftdi property and checks if it's already open and returns the value.
+    /// </summary>
+    public static bool CheckIfConnectionIsAlreadyOpen()
+    {
+        Logger.LogInfo("Checks if the connection is already open.");
+
+        var status = Ftdi.IsOpen;
+
+        Logger.LogInfo($"Current status: {status.ToString()}");
+
+        return status;
+    }
+
+    /// <summary>
+    /// Wrapper for retrieving the pipe information.
+    /// </summary>
+    public static List<FTDI.FT_PIPE_INFORMATION> GetAllPipesInformation()
+    {
+        Logger.LogInfo("Retrieving all pipe information from the device.");
+
+        return Ftdi.DataPipeInformation;
+    }
+    
+    /// <summary>
+    /// Set the pipe timeout to a certain value in ms.
+    /// </summary>
+    public static bool SetPipeTimeout(byte pipeId, UInt32 timeoutMs)
+    {
+        Logger.LogInfo($"Trying to set the timeout of pipe: 0x{pipeId:2X} to [{(timeoutMs == 0 ? "NO TIMEOUT" : timeoutMs)}].");
+        
+        var status = Ftdi.SetPipeTimeout(pipeId, timeoutMs);
+
+        if (status != FTDI.FT_STATUS.FT_OK)
+        {
+            Logger.LogError("Couldn't set the timeout of the specified pipe!");
+
+            return false;
+        }
+
+        Logger.LogInfo($"Successfully set the pipe timeout to: [{(timeoutMs == 0 ? "NO TIMEOUT" : timeoutMs)}].");
+
+        return true;
+    }
+
+    /// <summary>
     /// Gets all the connected FTDI devices info as a list.
     /// </summary>
     public static List<DeviceInfoWrapper> GetConnectedDevicesInfo()
@@ -88,10 +133,31 @@ public static class FtdiService
     }
 
     /// <summary>
+    /// Tries to flush a pipe. Returns true if successful.
+    /// </summary>
+    public static bool FlushPipe(byte pipe)
+    {
+        var status = Ftdi.FlushPipe(pipe);
+
+        if (status != FTDI.FT_STATUS.FT_OK)
+        {
+            Logger.LogError($"Couldn't flush pipe: 0x{pipe:X2}! Status: {status.ToString()}.");
+
+            Ftdi.AbortPipe(pipe);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Writes to PM1000 device's pipe. Returns true if it was successful.
     /// </summary>
     public static bool WriteToPipe(byte pipe, byte[] buffer)
     {
+        if (!FlushPipe(pipe)) return false;
+
         UInt32 bytesTransfered = 0;
 
         var status = Ftdi.WritePipe(pipe, buffer, (UInt32)buffer.Length, ref bytesTransfered);
@@ -99,6 +165,8 @@ public static class FtdiService
         if (status != FTDI.FT_STATUS.FT_OK)
         {
             Logger.LogError($"Something went wrong when writing to the pipe! Wrote: {bytesTransfered} bytes. Status: {status.ToString()}.");
+
+            Ftdi.AbortPipe(pipe);
 
             return false;
         }
@@ -115,6 +183,13 @@ public static class FtdiService
 
         var status = Ftdi.ReadPipe(pipe, buffer, bytesToRead, ref bytesRead);
 
+        if (status == FTDI.FT_STATUS.FT_TIMEOUT)
+        {
+            Logger.LogWarning($"A timeout for reading {bytesToRead} bytes occurred on pipe: 0x{pipe:X2}.");
+
+            return false;
+        }
+
         if (status != FTDI.FT_STATUS.FT_OK)
         {
             Logger.LogError($"Something went wrong when reading from the pipe! Read: {bytesRead} bytes. Status: {status.ToString()}.");
@@ -124,7 +199,7 @@ public static class FtdiService
             return false;
         }
 
-        Ftdi.AbortPipe(pipe);
+        Ftdi.FlushPipe(pipe);
 
         return true;
     }

@@ -30,7 +30,7 @@ public static class Logger
 
     public static void WriteDashedLine()
     {
-        Console.WriteLine("-----------------------------------------------");
+        Console.WriteLine("----------------------------------------------------------------------------------------------");
     }
 
     public static void WriteText(string text)

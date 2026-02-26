@@ -8,5 +8,7 @@ public enum PacketType
     WriteResponse,
     Transfer,
     TransferResponse,
-    StokesSnapshot
+    StokesSnapshot,
+    NotImplemented,
+    Unknown
 }

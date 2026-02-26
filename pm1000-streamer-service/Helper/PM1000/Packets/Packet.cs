@@ -37,4 +37,12 @@ public abstract class Packet
 
         return buffer;
     }
+
+    /// <summary>
+    /// Return the type of this packet.
+    /// </summary>
+    public PacketType GetPacketType()
+    {
+        return this.Type;
+    }
 }

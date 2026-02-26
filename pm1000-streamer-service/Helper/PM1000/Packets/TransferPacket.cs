@@ -9,11 +9,16 @@ public class TransferPacket : Packet
 {
     private static readonly UInt16 F_ASCII = (UInt16)Encoding.ASCII.GetBytes("F")[0];
 
+    public readonly UInt16 Crc;
+
     public TransferPacket(UInt16 address) : base(4, PacketType.Transfer)
     {
         Payload[0] = F_ASCII;
         Payload[1] = 0;
         Payload[2] = 0;
-        Payload[3] = CRC.CalculateRedundancyCheck(Payload, 3);
+
+        this.Crc = CRC.CalculateRedundancyCheck(Payload, 3);
+
+        Payload[3] = this.Crc;
     }
 }
