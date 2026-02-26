@@ -16,14 +16,13 @@ public partial class LivePage : UserControl
     private readonly MeasurementSession _session;
     private UdpListener? _listener;
     private DataRecorder? _recorder;
-    private StreamerApiClient? _apiClient;
     private TestDataGenerator? _testGenerator;
     private DispatcherTimer? _durationTimer;
     private DispatcherTimer? _elapsedTimer;
 
     // Poincaré sphere
     private List<(Point3D position, int age)> _trail = new();
-    private const int TRAIL_LENGTH = 5;
+    private const int TRAIL_LENGTH = 10;
     private const double SPHERE_RADIUS = 5.0;
     private ModelVisual3D? _lightsVisual;
     private Model3D? _sphereModel;
@@ -31,7 +30,10 @@ public partial class LivePage : UserControl
     // Audio display history (rolling window)
     private readonly Queue<float> _rawAudioHistory = new();
     private readonly Queue<float> _processedAudioHistory = new();
-    private const int AUDIO_HISTORY_SAMPLES = 32000; // ~2 s at 16 kHz
+    private const int AUDIO_HISTORY_SAMPLES = 32000; // full recording buffer
+    private const int AUDIO_DISPLAY_SAMPLES = 2000;  // visible window (~125 ms at 16 kHz)
+    private long _rawAudioTotalSamples;
+    private long _processedAudioTotalSamples;
 
     // Overlay state
     private bool _showOverlay;
@@ -56,7 +58,7 @@ public partial class LivePage : UserControl
 
     // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-    private async void LivePage_Loaded(object sender, RoutedEventArgs e)
+    private void LivePage_Loaded(object sender, RoutedEventArgs e)
     {
         // UI labels
         StreamerIpText.Text = _settings.StreamerIp;
@@ -70,31 +72,6 @@ public partial class LivePage : UserControl
         // Configure ScottPlot dark theme
         ConfigurePlot(ProcessedAudioPlot);
         ConfigurePlot(RawAudioPlot);
-
-        // REST API — get device info (skip in test mode)
-        if (!_settings.IsTestMode)
-        {
-            _apiClient = new StreamerApiClient(_settings.StreamerIp, _settings.ApiPort);
-            try
-            {
-                var freq = await _apiClient.GetFrequencyAsync();
-                var sr = await _apiClient.GetSampleRateAsync();
-                FreqText.Text = freq.HasValue ? $"{299792458.0 / freq.Value * 1e9:F1} nm" : "N/A";
-                SampleRateText.Text = sr.HasValue ? $"{sr.Value / 1000.0:F0} kHz" : "N/A";
-                _session.FrequencyHz = freq;
-                if (sr.HasValue) _session.SampleRateHz = sr.Value;
-            }
-            catch
-            {
-                FreqText.Text = "N/A";
-                SampleRateText.Text = "N/A";
-            }
-        }
-        else
-        {
-            FreqText.Text = "Test";
-            SampleRateText.Text = "16 kHz";
-        }
 
         // Start UDP listener
         _listener = new UdpListener(_settings.StokesPort, _settings.RawAudioPort, _settings.ProcessedAudioPort);
@@ -133,6 +110,14 @@ public partial class LivePage : UserControl
                 ElapsedText.Text = TimeSpan.FromMilliseconds(_recorder.ElapsedMs).ToString(@"m\:ss");
         };
         _elapsedTimer.Start();
+
+        // Initialize 3D scene with empty sphere and fit camera
+        var initialScene = new Model3DGroup();
+        initialScene.Children.Add(_sphereModel!);
+        PoincareView.Children.Clear();
+        PoincareView.Children.Add(_lightsVisual!);
+        PoincareView.Children.Add(new ModelVisual3D { Content = initialScene });
+        PoincareView.ZoomExtents(0);  // 0 ms animation = instant
     }
 
     private void LivePage_Unloaded(object sender, RoutedEventArgs e)
@@ -230,19 +215,25 @@ public partial class LivePage : UserControl
 
         foreach (var s in packet.Samples)
             _rawAudioHistory.Enqueue(s);
+        _rawAudioTotalSamples += packet.Samples.Length;
         while (_rawAudioHistory.Count > AUDIO_HISTORY_SAMPLES)
             _rawAudioHistory.Dequeue();
 
-        var snapshot = _rawAudioHistory.Select(s => (double)s).ToArray();
+        // Show only the most recent samples so the waveform stays readable
+        var snapshot = _rawAudioHistory.Skip(Math.Max(0, _rawAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
+                                       .Select(s => (double)s).ToArray();
+        long xEnd = _rawAudioTotalSamples;
+        long xStart = xEnd - snapshot.Length;
 
         Dispatcher.BeginInvoke(() =>
         {
             var plt = RawAudioPlot.Plot;
             plt.Clear();
-            plt.Add.Signal(snapshot);
-            plt.Title($"seq={packet.SequenceNr}  |  {packet.SampleRateHz} Hz");
+            var sig = plt.Add.Signal(snapshot);
+            sig.Data.XOffset = xStart;
+            plt.Title($"Raw  |  {xEnd:N0} samples received  |  seq={packet.SequenceNr}");
             plt.Axes.SetLimitsY(-1.2, 1.2);
-            plt.Axes.AutoScaleX();
+            plt.Axes.SetLimitsX(xStart, xEnd);
             RawAudioPlot.Refresh();
         });
     }
@@ -253,10 +244,15 @@ public partial class LivePage : UserControl
 
         foreach (var s in packet.Samples)
             _processedAudioHistory.Enqueue(s);
+        _processedAudioTotalSamples += packet.Samples.Length;
         while (_processedAudioHistory.Count > AUDIO_HISTORY_SAMPLES)
             _processedAudioHistory.Dequeue();
 
-        var snapshot = _processedAudioHistory.Select(s => (double)s).ToArray();
+        // Show only the most recent samples so the waveform stays readable
+        var snapshot = _processedAudioHistory.Skip(Math.Max(0, _processedAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
+                                              .Select(s => (double)s).ToArray();
+        long xEnd = _processedAudioTotalSamples;
+        long xStart = xEnd - snapshot.Length;
 
         Dispatcher.BeginInvoke(() =>
         {
@@ -264,19 +260,22 @@ public partial class LivePage : UserControl
             plt.Clear();
             var sig = plt.Add.Signal(snapshot);
             sig.Color = ScottPlot.Color.FromHex("#4A90D9");
+            sig.Data.XOffset = xStart;
 
             // Overlay raw audio on processed plot if enabled
             if (_showOverlay && _rawAudioHistory.Count > 0)
             {
-                var raw = _rawAudioHistory.Select(s => (double)s).ToArray();
+                var raw = _rawAudioHistory.Skip(Math.Max(0, _rawAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
+                                          .Select(s => (double)s).ToArray();
                 var overlay = plt.Add.Signal(raw);
                 overlay.Color = ScottPlot.Color.FromHex("#E74C3C");
                 overlay.LineWidth = 1;
+                overlay.Data.XOffset = xStart;
             }
 
-            plt.Title($"seq={packet.SequenceNr}  |  {packet.SampleRateHz} Hz");
+            plt.Title($"Processed  |  {xEnd:N0} samples received  |  seq={packet.SequenceNr}");
             plt.Axes.SetLimitsY(-1.2, 1.2);
-            plt.Axes.AutoScaleX();
+            plt.Axes.SetLimitsX(xStart, xEnd);
             ProcessedAudioPlot.Refresh();
         });
     }

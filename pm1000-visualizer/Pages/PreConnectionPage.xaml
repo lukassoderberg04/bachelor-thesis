@@ -40,7 +40,6 @@
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Text="Streamer IP"
@@ -52,18 +51,6 @@
                             Grid.Row="0"
                             Grid.Column="1"
                             Text="127.0.0.1"
-                               Style="{StaticResource DarkTextBox}"
-                            Margin="0,0,0,6"/>
-
-                    <TextBlock Text="REST API Port"
-                            Grid.Row="1"
-                            Foreground="#FFCCCCCC"
-                            VerticalAlignment="Center"
-                            Margin="0,0,0,6"/>
-                    <TextBox   x:Name="ApiPortBox"
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            Text="5003"
                                Style="{StaticResource DarkTextBox}"
                             Margin="0,0,0,6"/>
                 </Grid>
@@ -133,12 +120,14 @@
                 <RadioButton x:Name="IndefiniteRadio"
                              Content="Indefinite"
                              IsChecked="True"
+                             GroupName="Duration"
                              Style="{StaticResource DarkRadioButton}"
                              Margin="0,0,0,6"/>
 
                 <StackPanel Orientation="Horizontal">
                     <RadioButton x:Name="FixedRadio"
                                  Content="Fixed:"
+                                 GroupName="Duration"
                                  Style="{StaticResource DarkRadioButton}"/>
                     <TextBox x:Name="DurationBox"
                              Text="30"

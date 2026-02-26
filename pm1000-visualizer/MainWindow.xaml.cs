@@ -31,7 +31,6 @@ public partial class MainWindow : Window
         var session = new MeasurementSession
         {
             StreamerIp = settings.StreamerIp,
-            ApiPort = settings.ApiPort,
             IsIndefinite = settings.IsIndefinite,
             DurationSeconds = settings.DurationSeconds,
         };

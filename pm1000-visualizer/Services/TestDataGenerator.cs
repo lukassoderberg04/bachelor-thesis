@@ -12,8 +12,8 @@ namespace pm1000_visualizer.Services;
 /// Sends to localhost on the configured ports so UdpListener picks them up normally.
 ///
 /// Stokes: smooth orbit on the Poincaré sphere, S0 ≈ 15 µW, DOP ≈ 97 %
-/// Raw audio:       440 Hz sine (A4)
-/// Processed audio: 880 Hz sine (A5) — distinct from raw so you can see the difference
+/// Raw audio:       noisy multi-tone signal (fundamental + harmonics + noise + bursts)
+/// Processed audio: cleaner version with less noise — simulates filtering
 /// </summary>
 public class TestDataGenerator : IDisposable
 {
@@ -22,6 +22,12 @@ public class TestDataGenerator : IDisposable
     private double _angle;
     private double _rawAudioPhase;
     private double _processedAudioPhase;
+    private readonly Random _rng = new();
+
+    // Slowly drifting parameters to make the signal evolve over time
+    private double _fundamentalHz = 440;
+    private double _amplitudeMod;
+    private double _burstPhase;
 
     private readonly UdpClient _stokesSender = new();
     private readonly UdpClient _rawAudioSender = new();
@@ -64,9 +70,18 @@ public class TestDataGenerator : IDisposable
         {
             _angle += 0.05;
             _sequence++;
+
+            // Slowly drift the fundamental frequency between ~300 and ~600 Hz
+            _fundamentalHz += (_rng.NextDouble() - 0.5) * 8.0;
+            _fundamentalHz = Math.Clamp(_fundamentalHz, 300, 600);
+
+            // Amplitude modulation drifts slowly
+            _amplitudeMod += 0.03;
+            _burstPhase += 0.07;
+
             SendStokes();
-            SendAudio(_rawAudioSender, _rawAudioEp, 440, ref _rawAudioPhase);
-            SendAudio(_processedAudioSender, _processedAudioEp, 880, ref _processedAudioPhase);
+            SendRawAudio();
+            SendProcessedAudio();
         }
         catch (Exception ex)
         {
@@ -104,7 +119,7 @@ public class TestDataGenerator : IDisposable
         _stokesSender.Send(data, data.Length, _stokesEp);
     }
 
-    private void SendAudio(UdpClient client, IPEndPoint ep, double frequency, ref double phase)
+    private void SendRawAudio()
     {
         using var ms = new MemoryStream(PacketDeserializer.HEADER_SIZE + AUDIO_BLOCK * 4);
         using var w = new BinaryWriter(ms);
@@ -113,15 +128,57 @@ public class TestDataGenerator : IDisposable
         w.Write(SAMPLE_RATE);
         w.Write((ushort)AUDIO_BLOCK);
 
+        // Amplitude envelope: slow fade in/out with occasional bursts
+        double envelope = 0.5 + 0.3 * Math.Sin(_amplitudeMod) + 0.2 * Math.Max(0, Math.Sin(_burstPhase * 3.7));
+
         for (int i = 0; i < AUDIO_BLOCK; i++)
         {
-            w.Write((float)Math.Sin(phase));
-            phase += 2 * Math.PI * frequency / SAMPLE_RATE;
-            if (phase > 2 * Math.PI) phase -= 2 * Math.PI;
+            // Fundamental + 2nd/3rd harmonics with varying mix
+            double fundamental = Math.Sin(_rawAudioPhase);
+            double harmonic2 = 0.35 * Math.Sin(_rawAudioPhase * 2.02);  // slight detune
+            double harmonic3 = 0.15 * Math.Sin(_rawAudioPhase * 3.01);
+            double noise = (_rng.NextDouble() * 2 - 1) * 0.15;          // white noise floor
+
+            double sample = (fundamental + harmonic2 + harmonic3 + noise) * envelope;
+            sample = Math.Clamp(sample, -1.0, 1.0);
+
+            w.Write((float)sample);
+            _rawAudioPhase += 2 * Math.PI * _fundamentalHz / SAMPLE_RATE;
+            if (_rawAudioPhase > 2 * Math.PI) _rawAudioPhase -= 2 * Math.PI;
         }
 
         var data = ms.ToArray();
-        client.Send(data, data.Length, ep);
+        _rawAudioSender.Send(data, data.Length, _rawAudioEp);
+    }
+
+    private void SendProcessedAudio()
+    {
+        using var ms = new MemoryStream(PacketDeserializer.HEADER_SIZE + AUDIO_BLOCK * 4);
+        using var w = new BinaryWriter(ms);
+
+        w.Write(_sequence);
+        w.Write(SAMPLE_RATE);
+        w.Write((ushort)AUDIO_BLOCK);
+
+        // Processed = cleaner version: just fundamental + light harmonic, less noise
+        double envelope = 0.6 + 0.25 * Math.Sin(_amplitudeMod * 1.1);
+
+        for (int i = 0; i < AUDIO_BLOCK; i++)
+        {
+            double fundamental = Math.Sin(_processedAudioPhase);
+            double harmonic2 = 0.12 * Math.Sin(_processedAudioPhase * 2.0);
+            double noise = (_rng.NextDouble() * 2 - 1) * 0.03;  // much less noise
+
+            double sample = (fundamental + harmonic2 + noise) * envelope;
+            sample = Math.Clamp(sample, -1.0, 1.0);
+
+            w.Write((float)sample);
+            _processedAudioPhase += 2 * Math.PI * (_fundamentalHz * 1.0) / SAMPLE_RATE;
+            if (_processedAudioPhase > 2 * Math.PI) _processedAudioPhase -= 2 * Math.PI;
+        }
+
+        var data = ms.ToArray();
+        _processedAudioSender.Send(data, data.Length, _processedAudioEp);
     }
 
     public void Dispose()

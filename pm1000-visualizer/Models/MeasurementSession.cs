@@ -12,8 +12,6 @@ public class MeasurementSession
 
     // Connection info
     public string StreamerIp { get; set; } = "";
-    public int ApiPort { get; set; }
-    public double? FrequencyHz { get; set; }
     public uint SampleRateHz { get; set; } = 16000;
 
     // Duration config

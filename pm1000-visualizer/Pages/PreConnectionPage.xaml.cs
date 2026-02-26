@@ -19,11 +19,6 @@ public partial class PreConnectionPage : UserControl
         ErrorText.Visibility = Visibility.Collapsed;
 
         // Validate inputs
-        if (!int.TryParse(ApiPortBox.Text, out int apiPort) || apiPort < 1 || apiPort > 65535)
-        {
-            ShowError("REST API Port must be a valid port number (1–65535).");
-            return;
-        }
         if (!int.TryParse(StokesPortBox.Text, out int stokesPort) || stokesPort < 1 || stokesPort > 65535)
         {
             ShowError("Stokes Port must be a valid port number.");
@@ -51,7 +46,6 @@ public partial class PreConnectionPage : UserControl
         var settings = new ConnectionSettings
         {
             StreamerIp = IpBox.Text.Trim(),
-            ApiPort = apiPort,
             StokesPort = stokesPort,
             RawAudioPort = rawPort,
             ProcessedAudioPort = procPort,

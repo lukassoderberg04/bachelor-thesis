@@ -47,16 +47,6 @@
                     <TextBlock x:Name="StreamerIpText"
                             Foreground="White"
                             Text="-"/>
-                    <TextBlock Text="  │  Freq: "
-                            Foreground="#FFAAAAAA"/>
-                    <TextBlock x:Name="FreqText"
-                            Foreground="White"
-                            Text="-"/>
-                    <TextBlock Text="  │  SR: "
-                            Foreground="#FFAAAAAA"/>
-                    <TextBlock x:Name="SampleRateText"
-                            Foreground="White"
-                            Text="-"/>
                     <TextBlock Text="  │  Elapsed: "
                             Foreground="#FFAAAAAA"/>
                     <TextBlock x:Name="ElapsedText"
