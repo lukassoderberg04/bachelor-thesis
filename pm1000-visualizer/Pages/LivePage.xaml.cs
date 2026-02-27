@@ -38,6 +38,7 @@ public partial class LivePage : UserControl
 
     // Overlay state
     private bool _showOverlay;
+    private bool _showTrail = true;
 
     // Last Stokes values for display
     private StokeSample _lastStokes;
@@ -132,11 +133,9 @@ public partial class LivePage : UserControl
     {
         _recorder?.RecordStokes(packet);
 
-        foreach (var s in packet.Samples)
-            Logger.LogInfo($"[Stokes] S0={s.S0:F4}  S1={s.S1:F4}  S2={s.S2:F4}  S3={s.S3:F4}  DOP={s.Dop:F4}");
+        bool showTrail = _showTrail;  // Cache the value without blocking
 
-        bool showTrail = true;
-        Dispatcher.Invoke(() => showTrail = TrailCheckBox.IsChecked == true);
+        // Update trail
 
         // Update trail
         if (showTrail)
@@ -356,6 +355,11 @@ public partial class LivePage : UserControl
     {
         _showOverlay = !_showOverlay;
         OverlayButton.Content = _showOverlay ? "Hide Reference" : "Overlay Reference";
+    }
+
+    private void TrailCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        _showTrail = TrailCheckBox.IsChecked == true;
     }
 
     private void ProcSpec_Click(object sender, RoutedEventArgs e)
