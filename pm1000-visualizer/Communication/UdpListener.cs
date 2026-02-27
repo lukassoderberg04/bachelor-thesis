@@ -33,6 +33,10 @@ public class UdpListener : IDisposable
     private uint _lastRawAudioSeq = uint.MaxValue;
     private uint _lastProcessedAudioSeq = uint.MaxValue;
 
+    // Synthetic sequence counters for the streamer-service raw format (no header).
+    private uint _streamerStokesSeq;
+    private uint _streamerRawAudioSeq;
+
     public UdpListener(int stokesPort = 5000, int rawAudioPort = 5001, int processedAudioPort = 5002)
     {
         StokesPort = stokesPort;
@@ -75,22 +79,56 @@ public class UdpListener : IDisposable
             {
                 var data = (await client.ReceiveAsync()).Buffer;
 
+                Logger.LogInfo($"[{channel}] {data.Length} bytes: {Convert.ToHexString(data)}");
+
                 switch (channel)
                 {
                     case Channel.Stokes:
                         {
-                            var pkt = PacketDeserializer.TryDeserializeStokes(data);
-                            if (pkt == null) continue;
-                            CheckSequence(pkt.SequenceNr, ref _lastStokesSeq);
-                            StokesReceived?.Invoke(pkt);
+                            if (data.Length == PacketDeserializer.STREAMER_STOKES_SIZE)
+                            {
+                                // Streamer-service raw format: single sample, no header.
+                                var sample = PacketDeserializer.TryDeserializeStreamerStokes(data);
+                                if (sample == null)
+                                {
+                                    Logger.LogError($"[Stokes] Failed to deserialize streamer raw format packet ({data.Length} bytes)");
+                                    continue;
+                                }
+                                var pkt = new StokesPacket(_streamerStokesSeq++, 0, new[] { sample.Value });
+                                StokesReceived?.Invoke(pkt);
+                            }
+                            else
+                            {
+                                // Standard header+payload format.
+                                var pkt = PacketDeserializer.TryDeserializeStokes(data);
+                                if (pkt == null)
+                                {
+                                    Logger.LogError($"[Stokes] Failed to deserialize standard format packet ({data.Length} bytes, expected >= {PacketDeserializer.HEADER_SIZE})");
+                                    continue;
+                                }
+                                CheckSequence(pkt.SequenceNr, ref _lastStokesSeq);
+                                StokesReceived?.Invoke(pkt);
+                            }
                             break;
                         }
                     case Channel.RawAudio:
                         {
-                            var pkt = PacketDeserializer.TryDeserializeAudio(data);
-                            if (pkt == null) continue;
-                            CheckSequence(pkt.SequenceNr, ref _lastRawAudioSeq);
-                            RawAudioReceived?.Invoke(pkt);
+                            if (data.Length == PacketDeserializer.STREAMER_AUDIO_SIZE)
+                            {
+                                // Streamer-service raw format: single amplitude, no header.
+                                var amplitude = PacketDeserializer.TryDeserializeStreamerAudio(data);
+                                if (amplitude == null) continue;
+                                var pkt = new AudioPacket(_streamerRawAudioSeq++, 0, new[] { amplitude.Value });
+                                RawAudioReceived?.Invoke(pkt);
+                            }
+                            else
+                            {
+                                // Standard header+payload format.
+                                var pkt = PacketDeserializer.TryDeserializeAudio(data);
+                                if (pkt == null) continue;
+                                CheckSequence(pkt.SequenceNr, ref _lastRawAudioSeq);
+                                RawAudioReceived?.Invoke(pkt);
+                            }
                             break;
                         }
                     case Channel.ProcessedAudio:
