@@ -49,8 +49,8 @@ CancellationTokenSource tokenSrc = new();
 // Set the CTRL + C handler to cancel all other processes.
 Console.CancelKeyPress += (s, e) => 
 {
-    e.Cancel = true;
     tokenSrc.Cancel();
+    e.Cancel = true;
     Logger.WriteText("Aborting program...");
 };
 
