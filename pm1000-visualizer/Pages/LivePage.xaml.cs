@@ -26,6 +26,7 @@ public partial class LivePage : UserControl
     private const double SPHERE_RADIUS = 5.0;
     private ModelVisual3D? _lightsVisual;
     private Model3D? _sphereModel;
+    private ModelVisual3D? _trailVisual;
 
     // Audio display history (rolling window)
     private readonly Queue<float> _rawAudioHistory = new();
@@ -111,12 +112,12 @@ public partial class LivePage : UserControl
         };
         _elapsedTimer.Start();
 
-        // Initialize 3D scene with empty sphere and fit camera
-        var initialScene = new Model3DGroup();
-        initialScene.Children.Add(_sphereModel!);
+        // Initialize 3D scene — sphere and lights are added once and never removed.
+        _trailVisual = new ModelVisual3D();
         PoincareView.Children.Clear();
         PoincareView.Children.Add(_lightsVisual!);
-        PoincareView.Children.Add(new ModelVisual3D { Content = initialScene });
+        PoincareView.Children.Add(new ModelVisual3D { Content = _sphereModel });
+        PoincareView.Children.Add(_trailVisual);
         PoincareView.ZoomExtents(0);  // 0 ms animation = instant
     }
 
@@ -163,15 +164,11 @@ public partial class LivePage : UserControl
 
         Dispatcher.BeginInvoke(() =>
         {
-            // Rebuild scene
-            var scene = new Model3DGroup();
-            scene.Children.Add(_sphereModel!);
+            // Only update the trail — sphere and lights stay untouched.
+            var trailGroup = new Model3DGroup();
             foreach (var (pos, age) in trailSnap)
-                scene.Children.Add(BuildTrailPoint(pos, age));
-
-            PoincareView.Children.Clear();
-            PoincareView.Children.Add(_lightsVisual!);
-            PoincareView.Children.Add(new ModelVisual3D { Content = scene });
+                trailGroup.Children.Add(BuildTrailPoint(pos, age));
+            _trailVisual!.Content = trailGroup;
 
             // Update readout
             UpdateStokesDisplay(latest);
