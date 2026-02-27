@@ -60,8 +60,10 @@ API.Start(tokenSrc.Token, enableRest: false);
 
 while (!tokenSrc.Token.IsCancellationRequested) 
 { 
-    Console.Read();
-
     try { await Task.Delay(500, tokenSrc.Token); }
     catch { break; }
+
+    var packet = DataProvider.StokesPacket;
 }
+
+Console.Read();
