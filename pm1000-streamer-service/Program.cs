@@ -49,9 +49,19 @@ CancellationTokenSource tokenSrc = new();
 // Set the CTRL + C handler to cancel all other processes.
 Console.CancelKeyPress += (s, e) => 
 {
+    e.Cancel = true;
     tokenSrc.Cancel();
+    Logger.WriteText("Aborting program...");
 };
 
 Retriever.Start(tokenSrc.Token);
 
 API.Start(tokenSrc.Token, enableRest: false);
+
+while (!tokenSrc.Token.IsCancellationRequested) 
+{ 
+    Console.Read();
+
+    try { await Task.Delay(500, tokenSrc.Token); }
+    catch { break; }
+}
