@@ -133,9 +133,11 @@ public partial class LivePage : UserControl
     {
         _recorder?.RecordStokes(packet);
 
-        bool showTrail = _showTrail;  // Cache the value without blocking
+        foreach (var s in packet.Samples)
+            Logger.LogInfo($"[Stokes] S0={s.S0:F4}  S1={s.S1:F4}  S2={s.S2:F4}  S3={s.S3:F4}  DOP={s.Dop:F4}");
 
-        // Update trail
+        bool showTrail = true;
+        Dispatcher.Invoke(() => showTrail = TrailCheckBox.IsChecked == true);
 
         // Update trail
         if (showTrail)

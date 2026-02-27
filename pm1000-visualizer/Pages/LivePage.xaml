@@ -143,9 +143,7 @@
                                   IsChecked="True"
                                   Style="{StaticResource DarkCheckBox}"
                                   VerticalAlignment="Center"
-                                  Margin="8,0"
-                                  Checked="TrailCheckBox_Changed"
-                                  Unchecked="TrailCheckBox_Changed"/>
+                                  Margin="8,0"/>
                 </StackPanel>
 
                 <!-- ═══ Row 3: Processed Audio ═══════════════════════════════════ -->

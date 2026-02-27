@@ -79,8 +79,6 @@ public class UdpListener : IDisposable
             {
                 var data = (await client.ReceiveAsync()).Buffer;
 
-                Logger.LogInfo($"[{channel}] {data.Length} bytes: {Convert.ToHexString(data)}");
-
                 switch (channel)
                 {
                     case Channel.Stokes:
