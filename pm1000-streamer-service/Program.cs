@@ -62,8 +62,6 @@ while (!tokenSrc.Token.IsCancellationRequested)
 { 
     try { await Task.Delay(500, tokenSrc.Token); }
     catch { break; }
-
-    var packet = DataProvider.StokesPacket;
 }
 
 Console.Read();

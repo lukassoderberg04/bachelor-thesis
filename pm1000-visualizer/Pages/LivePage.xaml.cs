@@ -22,7 +22,7 @@ public partial class LivePage : UserControl
 
     // Poincaré sphere
     private List<(Point3D position, int age)> _trail = new();
-    private const int TRAIL_LENGTH = 10;
+    private const int TRAIL_LENGTH = 100;
     private const double SPHERE_RADIUS = 5.0;
     private ModelVisual3D? _lightsVisual;
     private Model3D? _sphereModel;
