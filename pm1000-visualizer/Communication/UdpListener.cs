@@ -89,7 +89,11 @@ public class UdpListener : IDisposable
                             {
                                 // Streamer-service raw format: single sample, no header.
                                 var sample = PacketDeserializer.TryDeserializeStreamerStokes(data);
-                                if (sample == null) continue;
+                                if (sample == null)
+                                {
+                                    Logger.LogError($"[Stokes] Failed to deserialize streamer raw format packet ({data.Length} bytes)");
+                                    continue;
+                                }
                                 var pkt = new StokesPacket(_streamerStokesSeq++, 0, new[] { sample.Value });
                                 StokesReceived?.Invoke(pkt);
                             }
@@ -97,7 +101,11 @@ public class UdpListener : IDisposable
                             {
                                 // Standard header+payload format.
                                 var pkt = PacketDeserializer.TryDeserializeStokes(data);
-                                if (pkt == null) continue;
+                                if (pkt == null)
+                                {
+                                    Logger.LogError($"[Stokes] Failed to deserialize standard format packet ({data.Length} bytes, expected >= {PacketDeserializer.HEADER_SIZE})");
+                                    continue;
+                                }
                                 CheckSequence(pkt.SequenceNr, ref _lastStokesSeq);
                                 StokesReceived?.Invoke(pkt);
                             }
