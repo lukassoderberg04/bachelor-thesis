@@ -38,10 +38,13 @@ public partial class LivePage : UserControl
 
     // Overlay state
     private bool _showOverlay;
-    private bool _showTrail = true;
+    private volatile bool _showTrail = true;
 
     // Last Stokes values for display
     private StokeSample _lastStokes;
+
+    // Prevents BeginInvoke queue buildup — only one UI update in flight at a time
+    private int _uiUpdatePending;
 
     /// <summary>Raised when measurement should end (user pressed Stop or duration expired).</summary>
     public event Action? StopRequested;
@@ -133,8 +136,7 @@ public partial class LivePage : UserControl
     {
         _recorder?.RecordStokes(packet);
 
-        bool showTrail = true;
-        Dispatcher.Invoke(() => showTrail = TrailCheckBox.IsChecked == true);
+        bool showTrail = _showTrail;
 
         // Update trail
         if (showTrail)
@@ -163,17 +165,23 @@ public partial class LivePage : UserControl
         _lastStokes = latest;
         var trailSnap = _trail.ToList();
 
-        Dispatcher.BeginInvoke(() =>
+        // Skip if a UI update is already queued — prevents backlog buildup
+        if (System.Threading.Interlocked.CompareExchange(ref _uiUpdatePending, 1, 0) == 0)
         {
-            // Only update the trail — sphere and lights stay untouched.
-            var trailGroup = new Model3DGroup();
-            foreach (var (pos, age) in trailSnap)
-                trailGroup.Children.Add(BuildTrailPoint(pos, age));
-            _trailVisual!.Content = trailGroup;
+            Dispatcher.BeginInvoke(() =>
+            {
+                // Only update the trail — sphere and lights stay untouched.
+                var trailGroup = new Model3DGroup();
+                foreach (var (pos, age) in trailSnap)
+                    trailGroup.Children.Add(BuildTrailPoint(pos, age));
+                _trailVisual!.Content = trailGroup;
 
-            // Update readout
-            UpdateStokesDisplay(latest);
-        });
+                // Update readout
+                UpdateStokesDisplay(latest);
+
+                System.Threading.Interlocked.Exchange(ref _uiUpdatePending, 0);
+            });
+        }
     }
 
     private void UpdateStokesDisplay(StokeSample s)
