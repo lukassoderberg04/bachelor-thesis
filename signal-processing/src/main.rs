@@ -1,250 +1,121 @@
-mod udp_sender;
-use udp_sender::AudioUdpSender;
+mod signal_processing;
+mod streaming;
 
-use std::{collections::VecDeque, error::Error, sync::{atomic::{AtomicBool, Ordering}, mpsc::{Receiver, Sender}}};
+use std::{
+    net::Ipv4Addr,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Sender},
+    },
+    thread::{self},
+};
 
 use ndarray::prelude::*;
-use num_complex::{ComplexFloat};
-use ruviz::{axes::AxisScale, core::Plot};
-use scirs2::{
-    linalg::{compat::Norm, svd},
-    signal::{
-        FilterType, butter,
-        filter::{self, lfilter, parallel_filtfilt},
-        filtfilt,
-        parametric::{SpectrumOptions, detect_spectral_peaks},
-    },
+
+use crate::{
+    signal_processing::{highpass, pca},
+    streaming::StokesUdpListener,
 };
-use scirs2_fft::{fft::complex_magnitude, rfft, rfftfreq};
-use scirs2_io::csv::{CsvReaderConfig, read_csv};
+
+// Constants
+const FILTER_ORDER: usize = 4;
+
+// TODO: Possibly make this more dynamic so that the program works even if that port is taken.
+const STOKES_PORT: u16 = 5000;
+
+// TODO: The following constants should probably be adjustable using arguments/config.
+const OJA_LEARNING_RATE: f64 = 0.01;
+const CUTOFF_FREQ: f64 = 20.0;
+const SAMPLING_FREQ: f64 = 1525.88;
 
 fn main() {
-    // TODO! Read data from stream
+    // TODO: Read data from stream
 
-    // TODO! Implement proper error handling once functionality is verified
+    // TODO: Implement proper error handling once functionality is verified
 
-    let config = CsvReaderConfig {
-        comment_char: Some('#'),
-        has_header: false,
-        skip_rows: 11,
-        trim: true,
-        ..Default::default()
-    };
+    // TODO: Replace Box<dyn Error> with concrete types in error handling
 
-    let (_, data) = read_csv(
-        "./example_data/polarimeter_recording_440Hz_0.txt",
-        Some(config),
-    )
-    .expect("Failed to read CSV file");
+    let mut controllers = Vec::new();
 
-    // Timestamps, S0, S1, S2, S3
-    let data = data.map(|f| f.parse::<f64>().unwrap());
+    let should_stop_listener = Arc::new(AtomicBool::new(false));
+    controllers.push(Arc::clone(&should_stop_listener));
 
-    // Convert from nanosecond timestamps to second timestamps
-    let timestamps = data.slice(s![.., 0]).into_owned() * 1e-9;
+    let should_stop_pca = Arc::new(AtomicBool::new(false));
+    controllers.push(Arc::clone(&should_stop_pca));
 
-    // Extract the stokes parameters S1 through S3 and normalize them by S0
-    let s = data.slice(s![.., 2..=4]).into_owned() / data.column(1).insert_axis(Axis(1));
+    let should_stop_filter = Arc::new(AtomicBool::new(false));
+    controllers.push(Arc::clone(&should_stop_filter));
 
-    let dt = timestamps.diff(1, Axis(0));
-    let sampling_rate = 1.0 / dt.mean().unwrap();
+    let (stokes_sender, stokes_reciever) = mpsc::channel();
+    let (timestamp_sender, timestamp_reciever) = mpsc::channel();
+    let (pca_sender, pca_reciever) = mpsc::channel();
+    let (filter_sender, filter_reciever) = mpsc::channel();
 
-    // Perform PCA using SVD. This only works for static datasets and will not work for the future stream
-    let amplitudes = static_pca(&s.view()).unwrap();
+    let mut handles = Vec::new();
 
-    // Filter frequencies
-    let cutoff_freq = 20.0; // Hz
-    let nyquist_freq = sampling_rate / 2.0;
-    let normalized_cutoff = cutoff_freq / nyquist_freq;
+    let listener_handle =
+        thread::spawn(move || fetch_data(stokes_sender, timestamp_sender, &should_stop_listener));
+    handles.push(listener_handle);
 
-    let (b, a) = butter(4, normalized_cutoff, FilterType::Highpass).unwrap();
-    let hp_amplitudes = Array1::from_vec(parallel_filtfilt(&b, &a, &amplitudes.as_slice().unwrap(), None).unwrap());
+    let pca_handle = thread::spawn(move || pca(&stokes_reciever, pca_sender, &should_stop_pca));
+    handles.push(pca_handle);
 
-    let n = hp_amplitudes.len();
-    let window = Array1::from_shape_fn(n, |i| {
-        0.5 * (1.0 - (2.0 * std::f64::consts::PI * i as f64 / (n as f64 - 1.0)).cos())
+    let filter_handle = thread::spawn(move || {
+        highpass(
+            &pca_reciever,
+            filter_sender,
+            &should_stop_filter,
+            CUTOFF_FREQ,
+            SAMPLING_FREQ,
+            FILTER_ORDER,
+        )
     });
+    handles.push(filter_handle);
 
-    let windowed_signal = &hp_amplitudes * &window;
+    let stft_handle = thread::spawn(move || todo!());
+    let sender_handle = thread::spawn(move || todo!());
 
-    let spectrum = rfft(windowed_signal.as_slice().unwrap(), Some(n))
-        .unwrap()
-        .iter()
-        .map(|f| f.abs() / (n as f64 / 2.0) * 2.0)
-        .collect::<Array1<f64>>();
+    // TODO: Stream data onward
 
-    let freqs = Array1::from_vec(rfftfreq(n, 1.0 / sampling_rate).unwrap());
+    // // Convert the extracted amplitudes (f64) to f32 audio samples.
+    // let audio_samples: Vec<f32> = hp_amplitudes.iter().map(|&x| x as f32).collect();
 
-    let peak_options = SpectrumOptions {
-        peak_threshold: 2e-5,
-        ..Default::default()
-    };
-
-    let peaks = detect_spectral_peaks(&spectrum, &freqs, &peak_options)
-        .unwrap()
-        .into_iter()
-        .filter(|peak| peak.prominence >= 2.0e-5);
-
-    let mut fig = Plot::new()
-        .line(&freqs.as_slice().unwrap(), &spectrum.as_slice().unwrap())
-        .xlabel("Frekvens")
-        .ylabel("Magnitud");
-
-    for peak in peaks {
-        println!(
-            "Peak with frequency {:.1}, magnitude {:.2e} and prominence {:.2e}",
-            peak.frequency, peak.power, peak.prominence
-        );
-
-        fig = fig.vline(peak.frequency)
-    }
-
-    fig.save_with_size("./junk/fft.png", 1280, 960)
-        .unwrap();
-
-    // Convert the extracted amplitudes (f64) to f32 audio samples.
-    let audio_samples: Vec<f32> = hp_amplitudes.iter().map(|&x| x as f32).collect();
-
-    // Send the block to the visualizer on port 5001.
-    // In the streaming integration, call send_block() once per processing window
-    // instead of once for the whole recording — see Documents/integration-guide.md.
-    let mut sender = AudioUdpSender::new("127.0.0.1", sampling_rate as u32)
-        .expect("Failed to bind UDP socket");
-    sender
-        .send_block(&audio_samples)
-        .expect("Failed to send audio UDP packet");
+    // // Send the block to the visualizer on port 5001.
+    // // In the streaming integration, call send_block() once per processing window
+    // // instead of once for the whole recording — see Documents/integration-guide.md.
+    // let mut sender =
+    //     AudioUdpSender::new("127.0.0.1", sampling_rate as u32).expect("Failed to bind UDP socket");
+    // sender
+    //     .send_block(&audio_samples)
+    //     .expect("Failed to send audio UDP packet");
 }
 
-fn static_pca(s: &ArrayView2<f64>) -> Result<Array1<f64>, Box<dyn Error>> {
-    let s_centered = s.to_owned() - s.mean_axis(Axis(0)).unwrap();
+fn fetch_data(
+    ts: Sender<Array1<f64>>,
+    tt: Sender<u32>,
+    should_stop: &AtomicBool,
+) -> Result<(), String> {
+    let listener = StokesUdpListener::bind((Ipv4Addr::LOCALHOST, STOKES_PORT))
+        .expect("Unable to bind to endpoint.");
 
-    let (_u, _s, vt) = svd(&s_centered.view(), false, None)?;
+    while !should_stop.load(Ordering::Relaxed) {
+        // Read values from the stokes UDP stream.
+        let result = listener.recv();
 
-    let weights_pca = vt.slice(s![0, ..]).to_owned();
+        let (t, s0, s1, s2, s3) = match result {
+            Err(err) if &err[..] == "Didn't recieve data." => continue,
+            Err(err) if err.starts_with("Incorrect byte amount.") => panic!("{}", err),
+            Err(_) => unreachable!(),
+            Ok(data) => data,
+        };
 
-    let amplitudes = s_centered.dot(&weights_pca);
+        // Create a normalized stokes array
+        let s = array![s1, s2, s3] / s0;
 
-    Ok(amplitudes)
-}
-
-/// Uses Oja's rule to perform PCA of data where the future of the dataset is unknown.
-/// 
-/// ## Parameters
-/// 
-/// - `weights` An `&mut Array1` with weights for each input component. 
-/// The array can have any (normalized) weights when the function is initially called, 
-/// but should be reused and untouched during the run. 
-/// 
-/// - `x` An `&ArrayView1` with the input data.
-/// 
-/// - `learning_rate` The rate of how fast the weights should be adjusted.
-/// 
-/// ## Rerurns
-/// 
-/// The magnitude along the principal component axis.
-fn ojas_rule(
-    weights: &mut Array1<f64>,
-    x: &ArrayView1<f64>,
-    learning_rate: f64,
-) -> f64 {
-    let y = weights.dot(x);
-
-    *weights = &*weights + learning_rate * y * (x - &*weights * y);
-    *weights /= weights.norm(); // Normalize 
-
-    y
-}
-
-/// Reads values from a channel, does a STFT on them and sends the resulting vectos through an output channel.
-/// 
-/// ## Parameters
-/// 
-/// - `rx` A reciever for the input channel.
-/// - `ty` A sender for the output channel.
-/// - `should_stop` An `AtomicBool` signifying weather the function should cease operations.
-/// - `window_size` The number of elements on which to perform each iteration of the STFT.
-/// - `hop_size` The number of elements between each iteration of the STFT.
-/// 
-/// ## Returns
-/// 
-/// The function never returns unless an error occurs or `should_stop` is set to `true`. 
-/// The values are instead returned through the output channel in the form of `Vec<f64>` 
-/// corresponding to the intensity at each frequency bin for one iteration.
-fn stft(rx: &Receiver<f64>, ty: Sender<Vec<f64>>, should_stop: &AtomicBool, window_size: usize, hop_size: usize) -> Result<(), Box<dyn Error>> {
-    let mut x = VecDeque::new();
-    let mut iter = 0usize..;
-
-    // Window size being 0 will cause logical errors
-    if window_size == 0 {
-        return Err("Window size can not be 0.".into());
-    }
-    
-    while should_stop.load(Ordering::Relaxed) {
-        let i = iter.next().unwrap(); // Will not return None
-
-        // Recieve a value from the channel and insert it into the deque.
-        x.push_back(rx.recv()?);
-
-        // Make sure enough samples have arrived and that the window is big enough.
-        if x.len() < window_size + 1 {
-            continue;
-        }
-
-        // Remove now irrelevant values. The previous guard clause asserts that the deque is not empty.
-        x.pop_front().unwrap();
-
-        // Only do the FFT when the hop size has been reached.
-        if i % hop_size != 0 {
-            continue;
-        }
-
-        // Rearrange the contents of the deque into a single slice and pass it to the fourier iteration.
-        let intensity_spectrum = stft_iteration(x.make_contiguous())?;
-
-        ty.send(intensity_spectrum)?;
+        ts.send(s).map_err(|err| format!("Sender error: {}", err))?;
+        tt.send(t).map_err(|err| format!("Sender error: {}", err))?;
     }
 
     Ok(())
-}
-
-/// Performs an iteration of the STFT with a few adjustments.
-/// 
-/// ## Parameters
-/// 
-/// - `x` A slice containing the values on which to perform the operation.
-/// 
-/// ## Returns
-/// 
-/// A vector of intensities represented as the magnitudes squared of the frequency spectrum.
-fn stft_iteration(x: &[f64]) -> Result<Vec<f64>, Box<dyn Error>> {
-    let n = x.len();
-
-    // Convert to Array1 to help with calculations
-    let x = Array1::from_iter(x.into_iter());
-
-    // Generate window coefficients
-    let window = hann(n);
-
-    let x_weighted = window * x;
-
-    // Perform the FFT on the weighted function
-    let spectrum = rfft(&x_weighted.as_slice().ok_or("Could not create a slice from `x_weigthed`.")?, Some(n))?;
-
-    // Return intensity as magnitude squared
-    Ok(spectrum.iter().map(|a| a.norm().powi(2)).collect::<Vec<f64>>())
-}
-
-/// Creates a hann window of a given length.
-/// 
-/// ## Parameters
-/// 
-/// - `n` Number of samples.
-/// 
-/// ## Returns
-/// 
-/// An `Array1<f64>` of samples of the hann window.
-fn hann(n: usize) -> Array1<f64> {
-    Array1::from_shape_fn(n, |i| {
-        0.5 * (1.0 - (2.0 * std::f64::consts::PI * i as f64 / (n as f64 - 1.0)).cos())
-    })
 }

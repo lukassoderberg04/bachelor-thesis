@@ -1,3 +1,5 @@
+// TODO: Eventually look over this for any discreapancies with the rest of the signal analyzer
+
 use std::net::UdpSocket;
 
 /// Sends processed audio samples to the visualizer over UDP on port 5001.
