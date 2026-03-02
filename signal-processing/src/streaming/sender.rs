@@ -18,19 +18,19 @@ use std::net::UdpSocket;
 /// Usage:
 ///   let mut sender = AudioUdpSender::new("127.0.0.1", 16000)?;
 ///   sender.send_block(&samples)?;
-pub struct AudioUdpSender {
+pub struct AudioUdpSenderOld {
     socket: UdpSocket,
     target: String,
     sample_rate_hz: u32,
     sequence_nr: u32,
 }
 
-impl AudioUdpSender {
+impl AudioUdpSenderOld {
     pub const AUDIO_PORT: u16 = 5001;
     pub const HEADER_SIZE: usize = 10; // 4 + 4 + 2 bytes
 
     /// Creates a new sender. `target_ip` is the IP of the machine running the visualizer.
-    pub fn new(target_ip: &str, sample_rate_hz: u32) -> std::io::Result<Self> {
+    pub fn bind(target_ip: &str, sample_rate_hz: u32) -> std::io::Result<Self> {
         let socket = UdpSocket::bind("0.0.0.0:0")?; // OS picks an ephemeral source port
         Ok(Self {
             socket,
@@ -64,4 +64,8 @@ impl AudioUdpSender {
 
         buf
     }
+}
+
+struct AudioUdpSender {
+    
 }

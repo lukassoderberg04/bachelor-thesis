@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, error::Error, sync::{atomic::{AtomicBool, Ordering}, mpsc::{Receiver, Sender}}};
 
-use ndarray::{Array1, ArrayView1, array};
+use ndarray::{Array1, ArrayView1};
 use scirs2::{linalg::compat::Norm, signal::{FilterType, butter}};
 use scirs2_fft::rfft;
 
@@ -130,14 +130,15 @@ pub fn highpass(
 /// corresponding to the intensity at each frequency bin for one iteration.
 pub fn stft(
     rx: &Receiver<f64>,
-    ty: Sender<Vec<f64>>,
+    rt: &Receiver<u32>,
+    ty: Sender<(u32, Vec<f64>)>,
     should_stop: &AtomicBool,
     window_size: usize,
     hop_size: usize,
-) -> Result<(), Box<dyn Error>> {
-    // TODO: Make sure ty will be properly hung up if an error occurs.
+) -> Result<(), String> {
 
     let mut x = VecDeque::new();
+    let mut t = VecDeque::new();
     let mut iter = 0usize..;
 
     // Window size being 0 will cause logical errors
@@ -148,8 +149,9 @@ pub fn stft(
     while !should_stop.load(Ordering::Relaxed) {
         let i = iter.next().unwrap(); // Will not return None
 
-        // Recieve a value from the channel and insert it into the deque.
-        x.push_back(rx.recv()?);
+        // Recieve values from the channels and insert them into the deque.
+        x.push_back(rx.recv().map_err(|err| format!("{}", err))?);
+        t.push_back(rt.recv().map_err(|err| format!("{}", err))?);
 
         // Make sure enough samples have arrived and that the window is big enough.
         if x.len() < window_size + 1 {
@@ -163,11 +165,15 @@ pub fn stft(
         if i % hop_size != 0 {
             continue;
         }
+        // Reset iterator to avoid reaching integer limit
+        iter = 0usize..;
 
         // Rearrange the contents of the deque into a single slice and pass it to the fourier iteration.
         let intensity_spectrum = stft_iteration(x.make_contiguous())?;
+        
+        let t_mean = (t[0] + t.iter().last().unwrap()) / 2;
 
-        ty.send(intensity_spectrum)?;
+        ty.send((t_mean, intensity_spectrum)).map_err(|err| format!("{}", err))?;
     }
 
     Ok(())
@@ -182,7 +188,7 @@ pub fn stft(
 /// ## Returns
 ///
 /// A vector of intensities represented as the magnitudes squared of the frequency spectrum.
-pub fn stft_iteration(x: &[f64]) -> Result<Vec<f64>, Box<dyn Error>> {
+pub fn stft_iteration(x: &[f64]) -> Result<Vec<f64>, String> {
     let n = x.len();
 
     // Convert to Array1 to help with calculations
@@ -199,7 +205,7 @@ pub fn stft_iteration(x: &[f64]) -> Result<Vec<f64>, Box<dyn Error>> {
             .as_slice()
             .ok_or("Could not create a slice from `x_weigthed`.")?,
         Some(n),
-    )?;
+    ).map_err(|err| format!("{}", err))?;
 
     // Return intensity as magnitude squared
     Ok(spectrum
