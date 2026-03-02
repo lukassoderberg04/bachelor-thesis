@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -17,16 +18,20 @@ public partial class LivePage : UserControl
     private UdpListener? _listener;
     private DataRecorder? _recorder;
     private TestDataGenerator? _testGenerator;
+    private StressTestGenerator? _stressGenerator;
     private DispatcherTimer? _durationTimer;
     private DispatcherTimer? _elapsedTimer;
 
     // Poincaré sphere
     private List<(Point3D position, int age)> _trail = new();
-    private const int TRAIL_LENGTH = 100;
+    private const int TRAIL_LENGTH = 10;
     private const double SPHERE_RADIUS = 5.0;
     private ModelVisual3D? _lightsVisual;
     private Model3D? _sphereModel;
     private ModelVisual3D? _trailVisual;
+
+    // Thread-safe buffer for incoming Stokes positions (written by UDP thread, drained by UI)
+    private readonly ConcurrentQueue<Point3D> _pendingPoints = new();
 
     // Audio display history (rolling window)
     private readonly Queue<float> _rawAudioHistory = new();
@@ -35,6 +40,8 @@ public partial class LivePage : UserControl
     private const int AUDIO_DISPLAY_SAMPLES = 2000;  // visible window (~125 ms at 16 kHz)
     private long _rawAudioTotalSamples;
     private long _processedAudioTotalSamples;
+    private readonly object _rawAudioLock = new();
+    private readonly object _processedAudioLock = new();
 
     // Overlay state
     private bool _showOverlay;
@@ -45,6 +52,19 @@ public partial class LivePage : UserControl
 
     // Prevents BeginInvoke queue buildup — only one UI update in flight at a time
     private int _uiUpdatePending;
+    private int _rawAudioUpdatePending;
+    private int _processedAudioUpdatePending;
+
+    // Shared frozen mesh for trail points — avoids rebuilding geometry every frame
+    private static readonly MeshGeometry3D _sharedTrailMesh;
+
+    static LivePage()
+    {
+        var mb = new MeshBuilder();
+        mb.AddSphere(new Point3D(0, 0, 0), 1.0, 4, 4);
+        _sharedTrailMesh = mb.ToMesh();
+        _sharedTrailMesh.Freeze();  // immutable → GPU-cacheable
+    }
 
     /// <summary>Raised when measurement should end (user pressed Stop or duration expired).</summary>
     public event Action? StopRequested;
@@ -98,6 +118,13 @@ public partial class LivePage : UserControl
                 _settings.StokesPort, _settings.RawAudioPort, _settings.ProcessedAudioPort);
             _testGenerator.Start();
         }
+        else if (_settings.IsStressTest)
+        {
+            _stressGenerator = new StressTestGenerator(
+                _settings.StokesPort, _settings.RawAudioPort,
+                _settings.StressStokesPerSecond, _settings.StressAudioPerSecond);
+            _stressGenerator.Start();
+        }
 
         // Duration timer (fixed-length measurement)
         if (!_settings.IsIndefinite)
@@ -136,48 +163,65 @@ public partial class LivePage : UserControl
     {
         _recorder?.RecordStokes(packet);
 
-        bool showTrail = _showTrail;
-
-        // Update trail
-        if (showTrail)
-        {
-            for (int i = 0; i < _trail.Count; i++)
-                _trail[i] = (_trail[i].position, _trail[i].age + 1);
-            _trail.RemoveAll(p => p.age >= TRAIL_LENGTH);
-        }
-        else
-        {
-            _trail.Clear();
-        }
-
+        // Buffer incoming points — trail management is deferred to the UI thread
         StokeSample latest = default;
+        bool hasData = false;
+
         foreach (var s in packet.Samples)
         {
             double len = Math.Sqrt(s.S1 * s.S1 + s.S2 * s.S2 + s.S3 * s.S3);
             if (len < 0.001) continue;
             latest = s;
-            if (showTrail)
-                _trail.Add((new Point3D(s.S1 / len * SPHERE_RADIUS,
-                                        s.S2 / len * SPHERE_RADIUS,
-                                        s.S3 / len * SPHERE_RADIUS), 0));
+            hasData = true;
+
+            if (_showTrail)
+            {
+                _pendingPoints.Enqueue(new Point3D(
+                    s.S1 / len * SPHERE_RADIUS,
+                    s.S2 / len * SPHERE_RADIUS,
+                    s.S3 / len * SPHERE_RADIUS));
+            }
         }
 
-        _lastStokes = latest;
-        var trailSnap = _trail.ToList();
+        if (hasData)
+            _lastStokes = latest;
 
         // Skip if a UI update is already queued — prevents backlog buildup
         if (System.Threading.Interlocked.CompareExchange(ref _uiUpdatePending, 1, 0) == 0)
         {
             Dispatcher.BeginInvoke(() =>
             {
-                // Only update the trail — sphere and lights stay untouched.
+                // Drain pending points into trail on UI thread (thread-safe)
+                bool showTrail = _showTrail;
+                int newCount = 0;
+
+                if (showTrail)
+                {
+                    while (_pendingPoints.TryDequeue(out var pt))
+                    {
+                        _trail.Add((pt, 0));
+                        newCount++;
+                    }
+                    // Age only the pre-existing points
+                    int existingCount = _trail.Count - newCount;
+                    for (int i = 0; i < existingCount; i++)
+                        _trail[i] = (_trail[i].position, _trail[i].age + newCount);
+                    _trail.RemoveAll(p => p.age >= TRAIL_LENGTH);
+                }
+                else
+                {
+                    _trail.Clear();
+                    while (_pendingPoints.TryDequeue(out _)) { }
+                }
+
+                // Rebuild trail visual using shared frozen mesh
                 var trailGroup = new Model3DGroup();
-                foreach (var (pos, age) in trailSnap)
+                foreach (var (pos, age) in _trail)
                     trailGroup.Children.Add(BuildTrailPoint(pos, age));
                 _trailVisual!.Content = trailGroup;
 
                 // Update readout
-                UpdateStokesDisplay(latest);
+                UpdateStokesDisplay(_lastStokes);
 
                 System.Threading.Interlocked.Exchange(ref _uiUpdatePending, 0);
             });
@@ -219,71 +263,111 @@ public partial class LivePage : UserControl
     {
         _recorder?.RecordRawAudio(packet);
 
-        foreach (var s in packet.Samples)
-            _rawAudioHistory.Enqueue(s);
-        _rawAudioTotalSamples += packet.Samples.Length;
-        while (_rawAudioHistory.Count > AUDIO_HISTORY_SAMPLES)
-            _rawAudioHistory.Dequeue();
-
-        // Show only the most recent samples so the waveform stays readable
-        var snapshot = _rawAudioHistory.Skip(Math.Max(0, _rawAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
-                                       .Select(s => (double)s).ToArray();
-        long xEnd = _rawAudioTotalSamples;
-        long xStart = xEnd - snapshot.Length;
-
-        Dispatcher.BeginInvoke(() =>
+        lock (_rawAudioLock)
         {
-            var plt = RawAudioPlot.Plot;
-            plt.Clear();
-            var sig = plt.Add.Signal(snapshot);
-            sig.Data.XOffset = xStart;
-            plt.Title($"Raw  |  {xEnd:N0} samples received  |  seq={packet.SequenceNr}");
-            plt.Axes.SetLimitsY(-1.2, 1.2);
-            plt.Axes.SetLimitsX(xStart, xEnd);
-            RawAudioPlot.Refresh();
-        });
+            foreach (var s in packet.Samples)
+                _rawAudioHistory.Enqueue(s);
+            _rawAudioTotalSamples += packet.Samples.Length;
+            while (_rawAudioHistory.Count > AUDIO_HISTORY_SAMPLES)
+                _rawAudioHistory.Dequeue();
+        }
+
+        // Skip if a UI update is already queued
+        if (System.Threading.Interlocked.CompareExchange(ref _rawAudioUpdatePending, 1, 0) == 0)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                double[] snapshot;
+                long xEnd, xStart;
+                lock (_rawAudioLock)
+                {
+                    snapshot = _rawAudioHistory
+                        .Skip(Math.Max(0, _rawAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
+                        .Select(s => (double)s).ToArray();
+                    xEnd = _rawAudioTotalSamples;
+                    xStart = xEnd - snapshot.Length;
+                }
+
+                var plt = RawAudioPlot.Plot;
+                plt.Clear();
+                var sig = plt.Add.Signal(snapshot);
+                sig.Data.XOffset = xStart;
+                plt.Title($"Raw  |  {xEnd:N0} samples received");
+                plt.Axes.SetLimitsX(xStart, xEnd);
+                plt.Axes.AutoScaleY();
+                RawAudioPlot.Refresh();
+
+                System.Threading.Interlocked.Exchange(ref _rawAudioUpdatePending, 0);
+            });
+        }
     }
 
     private void OnProcessedAudioReceived(AudioPacket packet)
     {
         _recorder?.RecordProcessedAudio(packet);
 
-        foreach (var s in packet.Samples)
-            _processedAudioHistory.Enqueue(s);
-        _processedAudioTotalSamples += packet.Samples.Length;
-        while (_processedAudioHistory.Count > AUDIO_HISTORY_SAMPLES)
-            _processedAudioHistory.Dequeue();
-
-        // Show only the most recent samples so the waveform stays readable
-        var snapshot = _processedAudioHistory.Skip(Math.Max(0, _processedAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
-                                              .Select(s => (double)s).ToArray();
-        long xEnd = _processedAudioTotalSamples;
-        long xStart = xEnd - snapshot.Length;
-
-        Dispatcher.BeginInvoke(() =>
+        lock (_processedAudioLock)
         {
-            var plt = ProcessedAudioPlot.Plot;
-            plt.Clear();
-            var sig = plt.Add.Signal(snapshot);
-            sig.Color = ScottPlot.Color.FromHex("#4A90D9");
-            sig.Data.XOffset = xStart;
+            foreach (var s in packet.Samples)
+                _processedAudioHistory.Enqueue(s);
+            _processedAudioTotalSamples += packet.Samples.Length;
+            while (_processedAudioHistory.Count > AUDIO_HISTORY_SAMPLES)
+                _processedAudioHistory.Dequeue();
+        }
 
-            // Overlay raw audio on processed plot if enabled
-            if (_showOverlay && _rawAudioHistory.Count > 0)
+        // Skip if a UI update is already queued
+        if (System.Threading.Interlocked.CompareExchange(ref _processedAudioUpdatePending, 1, 0) == 0)
+        {
+            Dispatcher.BeginInvoke(() =>
             {
-                var raw = _rawAudioHistory.Skip(Math.Max(0, _rawAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
-                                          .Select(s => (double)s).ToArray();
-                var overlay = plt.Add.Signal(raw);
-                overlay.Color = ScottPlot.Color.FromHex("#E74C3C");
-                overlay.LineWidth = 1;
-                overlay.Data.XOffset = xStart;
-            }
+                double[] snapshot;
+                long xEnd, xStart;
+                lock (_processedAudioLock)
+                {
+                    snapshot = _processedAudioHistory
+                        .Skip(Math.Max(0, _processedAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
+                        .Select(s => (double)s).ToArray();
+                    xEnd = _processedAudioTotalSamples;
+                    xStart = xEnd - snapshot.Length;
+                }
 
-            plt.Title($"Processed  |  {xEnd:N0} samples received  |  seq={packet.SequenceNr}");
-            plt.Axes.SetLimitsY(-1.2, 1.2);
-            plt.Axes.SetLimitsX(xStart, xEnd);
-            ProcessedAudioPlot.Refresh();
-        });
+                var plt = ProcessedAudioPlot.Plot;
+                plt.Clear();
+                var sig = plt.Add.Signal(snapshot);
+                sig.Color = ScottPlot.Color.FromHex("#4A90D9");
+                sig.Data.XOffset = xStart;
+
+                // Overlay raw audio on processed plot if enabled
+                if (_showOverlay)
+                {
+                    double[] rawSnap;
+                    lock (_rawAudioLock)
+                    {
+                        if (_rawAudioHistory.Count > 0)
+                        {
+                            rawSnap = _rawAudioHistory
+                                .Skip(Math.Max(0, _rawAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
+                                .Select(s => (double)s).ToArray();
+                        }
+                        else rawSnap = Array.Empty<double>();
+                    }
+                    if (rawSnap.Length > 0)
+                    {
+                        var overlay = plt.Add.Signal(rawSnap);
+                        overlay.Color = ScottPlot.Color.FromHex("#E74C3C");
+                        overlay.LineWidth = 1;
+                        overlay.Data.XOffset = xStart;
+                    }
+                }
+
+                plt.Title($"Processed  |  {xEnd:N0} samples received");
+                plt.Axes.SetLimitsX(xStart, xEnd);
+                plt.Axes.AutoScaleY();
+                ProcessedAudioPlot.Refresh();
+
+                System.Threading.Interlocked.Exchange(ref _processedAudioUpdatePending, 0);
+            });
+        }
     }
 
     // ── 3D scene helpers ───────────────────────────────────────────────────────
@@ -308,10 +392,14 @@ public partial class LivePage : UserControl
             (byte)(100 * t));
         double size = 0.08 * (1 - t * 0.5);
 
-        var mesh = new MeshBuilder();
-        mesh.AddSphere(pos, size, 12, 12);
-        return new GeometryModel3D(mesh.ToMesh(),
+        // Reuse shared frozen mesh + transform instead of rebuilding geometry every frame
+        var model = new GeometryModel3D(_sharedTrailMesh,
             new DiffuseMaterial(new SolidColorBrush(color)));
+        var transforms = new Transform3DGroup();
+        transforms.Children.Add(new ScaleTransform3D(size, size, size));
+        transforms.Children.Add(new TranslateTransform3D(pos.X, pos.Y, pos.Z));
+        model.Transform = transforms;
+        return model;
     }
 
     private static Model3DGroup BuildLights()
@@ -396,6 +484,8 @@ public partial class LivePage : UserControl
         _durationTimer?.Stop();
         _testGenerator?.Stop();
         _testGenerator?.Dispose();
+        _stressGenerator?.Stop();
+        _stressGenerator?.Dispose();
         _listener?.Stop();
         _listener?.Dispose();
     }

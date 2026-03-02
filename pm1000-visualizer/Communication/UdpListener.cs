@@ -139,7 +139,6 @@ public class UdpListener : IDisposable
                         }
                 }
 
-                await Task.Delay(1);  // Throttle to ~1 ms between receiving packets
             }
             catch (ObjectDisposedException) { break; }
             catch (Exception ex) { Logger.LogError($"UDP receive error ({channel}): {ex.Message}"); }

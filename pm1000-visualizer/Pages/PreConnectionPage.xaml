@@ -9,7 +9,7 @@
                 CornerRadius="8"
                 Padding="35"
                 MaxWidth="480"
-                MaxHeight="650"
+                MaxHeight="850"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center">
             <StackPanel>
@@ -140,10 +140,71 @@
                 </StackPanel>
 
                 <!-- ── Test mode ────────────────────────────── -->
-                <CheckBox x:Name="TestModeCheck"
-                          Content="Test Mode (synthetic data, no device needed)"
-                          Style="{StaticResource DarkCheckBox}"
-                          Margin="0,20,0,0"/>
+                <TextBlock Text="TEST MODE"
+                           Foreground="#FF4A90D9"
+                           FontWeight="Bold"
+                           FontSize="11"
+                           Margin="0,20,0,8"/>
+
+                <RadioButton x:Name="NoTestRadio"
+                             Content="None (real device)"
+                             IsChecked="True"
+                             GroupName="TestMode"
+                             Style="{StaticResource DarkRadioButton}"
+                             Margin="0,0,0,6"/>
+
+                <RadioButton x:Name="TestModeRadio"
+                             Content="Synthetic Test (header+block packets)"
+                             GroupName="TestMode"
+                             Style="{StaticResource DarkRadioButton}"
+                             Margin="0,0,0,6"/>
+
+                <RadioButton x:Name="StressTestRadio"
+                             Content="Stress Test (raw single-sample packets)"
+                             GroupName="TestMode"
+                             Style="{StaticResource DarkRadioButton}"
+                             Checked="StressTestRadio_Changed"
+                             Unchecked="StressTestRadio_Changed"
+                             Margin="0,0,0,6"/>
+
+                <!-- Stress test rate controls (visible only when stress test selected) -->
+                <StackPanel x:Name="StressPanel"
+                            Visibility="Collapsed"
+                            Margin="20,4,0,0">
+                    <TextBlock Foreground="#FFCCCCCC"
+                               FontSize="12"
+                               Margin="0,0,0,4">
+                        <Run Text="Stokes rate: "/>
+                        <Run x:Name="StokesRateLabel"
+                                Text="1000"/>
+                        <Run Text=" packets/sec"/>
+                    </TextBlock>
+                    <Slider x:Name="StokesRateSlider"
+                            Minimum="100"
+                            Maximum="20000"
+                            Value="1000"
+                            TickFrequency="100"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="StokesRateSlider_Changed"
+                            Margin="0,0,0,8"/>
+
+                    <TextBlock Foreground="#FFCCCCCC"
+                               FontSize="12"
+                               Margin="0,0,0,4">
+                        <Run Text="Audio rate: "/>
+                        <Run x:Name="AudioRateLabel"
+                                Text="16000"/>
+                        <Run Text=" packets/sec"/>
+                    </TextBlock>
+                    <Slider x:Name="AudioRateSlider"
+                            Minimum="1000"
+                            Maximum="48000"
+                            Value="16000"
+                            TickFrequency="1000"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="AudioRateSlider_Changed"
+                            Margin="0,0,0,4"/>
+                </StackPanel>
 
                 <!-- ── Connect button ───────────────────────── -->
                 <Button Content="Connect"
