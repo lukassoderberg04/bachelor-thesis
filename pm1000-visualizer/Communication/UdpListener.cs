@@ -114,9 +114,12 @@ public class UdpListener : IDisposable
                             if (data.Length == PacketDeserializer.STREAMER_AUDIO_SIZE)
                             {
                                 // Streamer-service raw format: single amplitude, no header.
+                                // The streamer sends a raw Int16 value cast to float (range ±32768).
+                                // Normalise to ±1 so FileSaver.SaveWav produces valid PCM.
                                 var amplitude = PacketDeserializer.TryDeserializeStreamerAudio(data);
                                 if (amplitude == null) continue;
-                                var pkt = new AudioPacket(_streamerRawAudioSeq++, 0, new[] { amplitude.Value });
+                                float normalized = amplitude.Value / 32768f;
+                                var pkt = new AudioPacket(_streamerRawAudioSeq++, 8000, new[] { normalized });
                                 RawAudioReceived?.Invoke(pkt);
                             }
                             else
