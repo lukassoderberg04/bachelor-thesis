@@ -6,8 +6,6 @@ namespace pm1000_visualizer.Communication;
 /// <summary>
 /// REST client for talking to Lukas's pm1000-streamer-service API.
 ///
-/// Base URL: http://{streamerHost}:5002
-///
 /// Available endpoints:
 ///   GET  /frequency   → returns { "hz": 193414000000.0 }  (laser light frequency)
 ///   GET  /samplerate  → returns { "hz": 16000 }
@@ -15,15 +13,13 @@ namespace pm1000_visualizer.Communication;
 /// </summary>
 public class StreamerApiClient
 {
-    public const int API_PORT = 5002;
-
     private readonly HttpClient _http;
 
-    public StreamerApiClient(string streamerHost = "127.0.0.1")
+    public StreamerApiClient(string streamerHost = "127.0.0.1", int apiPort = 5003)
     {
         _http = new HttpClient
         {
-            BaseAddress = new Uri($"http://{streamerHost}:{API_PORT}"),
+            BaseAddress = new Uri($"http://{streamerHost}:{apiPort}"),
             Timeout = TimeSpan.FromSeconds(3)
         };
     }

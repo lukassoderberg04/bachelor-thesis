@@ -137,6 +137,7 @@ public static class FtdiService
     /// </summary>
     public static bool FlushPipe(byte pipe)
     {
+        /*
         var status = Ftdi.FlushPipe(pipe);
 
         if (status != FTDI.FT_STATUS.FT_OK)
@@ -147,6 +148,9 @@ public static class FtdiService
 
             return false;
         }
+
+        return true;
+        */
 
         return true;
     }

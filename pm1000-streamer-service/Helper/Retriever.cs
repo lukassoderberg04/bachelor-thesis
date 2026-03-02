@@ -128,12 +128,10 @@ public static class Retriever
     {
         waveIn.DataAvailable += (s, e) =>
         {
-            const float largestInt16Value = 32768f;
-
             if (e.BytesRecorded < 2) return;
 
-            Int16 sample  = BitConverter.ToInt16(e.Buffer, 0);    // Read the first two bytes in the buffer as Int16.
-            var amplitude = Math.Abs(sample / largestInt16Value); // 0.0 <= audio sample <= 1.0!
+            Int16 sample  = BitConverter.ToInt16(e.Buffer, 0); // Read the first two bytes in the buffer as Int16.
+            var amplitude = (float)sample;
 
             DataProvider.AudioPacket = new AudioSnapshotPacket(amplitude);
         };

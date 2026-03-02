@@ -4,14 +4,14 @@ namespace pm1000_streamer_service.API
 {
     /// <summary>
     /// The REST api is defined in this class. It will serve the REST functionality to the users.
-    /// Port 5002 --> rest api:
+    /// Port 5003 --> rest api:
     ///    GET:  /frequency  --> laser light frequency in Hz.
     ///    GET:  /samplerate --> current sampling rate in Hz.
     ///    POST: /samplerate --> set a new sampling rate in Hz.
     /// </summary>
     public static class RestServer
     {
-        public static readonly int REST_PORT = 5002;
+        public static readonly int REST_PORT = 5003;
 
         /// <summary>
         /// Start the REST service.

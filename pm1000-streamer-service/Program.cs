@@ -50,8 +50,18 @@ CancellationTokenSource tokenSrc = new();
 Console.CancelKeyPress += (s, e) => 
 {
     tokenSrc.Cancel();
+    e.Cancel = true;
+    Logger.WriteText("Aborting program...");
 };
 
 Retriever.Start(tokenSrc.Token);
 
 API.Start(tokenSrc.Token, enableRest: false);
+
+while (!tokenSrc.Token.IsCancellationRequested) 
+{ 
+    try { await Task.Delay(500, tokenSrc.Token); }
+    catch { break; }
+}
+
+Console.Read();
