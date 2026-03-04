@@ -118,7 +118,7 @@ public static class Retriever
         const float dopResolution = 32768f;
         var dop = (float)readResponses[8].Data / dopResolution;
 
-        DataProvider.StokesPacket = new StokesSnapshotPacket(s0, s1, s2, s3, dop);
+        DataProvider.TryAddStokesPacket(new StokesSnapshotPacket(s0, s1, s2, s3, dop));
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ public static class Retriever
             Int16 sample  = BitConverter.ToInt16(e.Buffer, 0); // Read the first two bytes in the buffer as Int16.
             var amplitude = (float)sample;
 
-            DataProvider.AudioPacket = new AudioSnapshotPacket(amplitude);
+            DataProvider.TryAddAudioPacket(new AudioSnapshotPacket(amplitude));
         };
 
         waveIn.StartRecording();

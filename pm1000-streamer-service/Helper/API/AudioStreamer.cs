@@ -24,7 +24,8 @@ public static class AudioStreamer
     }
 
     /// <summary>
-    /// Configures the Audio udp client and start sending data.
+    /// Configures the Audio udp client and start sending data. Only runs when
+    /// there's packets to be sent.
     /// </summary>
     private async static Task runAudioServer(CancellationToken token)
     {
@@ -32,7 +33,9 @@ public static class AudioStreamer
 
         while (!token.IsCancellationRequested)
         {
-            var buffer = DataProvider.AudioPacket.GetBytes();
+            var packet = await DataProvider.GetAudioPacket(token);
+
+            var buffer = packet.GetBytes();
 
             await client.SendAsync(buffer, buffer.Length, Endpoint);
         }

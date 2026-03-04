@@ -24,7 +24,8 @@ public static class StokesStreamer
     }
 
     /// <summary>
-    /// Configures the Stokes udp client and start sending data.
+    /// Configures the Stokes udp client and start sending data. Only runs
+    /// when there's data to be sent.
     /// </summary>
     private async static Task runStokesServer(CancellationToken token)
     {
@@ -32,7 +33,9 @@ public static class StokesStreamer
         
         while (!token.IsCancellationRequested)
         {
-            var buffer = DataProvider.StokesPacket.GetBytes();
+            var packet = await DataProvider.GetStokesPacket(token);
+
+            var buffer = packet.GetBytes();
 
             await client.SendAsync(buffer, buffer.Length, Endpoint);
         }
