@@ -1,25 +1,32 @@
-﻿using pm1000_streamer_service.PM1000;
+﻿using System.Threading.Channels;
+using pm1000_streamer_service.PM1000;
 
 namespace pm1000_streamer_service.API;
 
 /// <summary>
-/// Will provide the producers with a way to fill data (in a thread safe way)
-/// that the consumers will read, and hence consume.
+/// Thread-safe producer/consumer queues between the Retriever (producers)
+/// and the Streamer tasks (consumers).
+///
+/// Each item written to a channel is sent exactly once over UDP.
+/// No more tight-loop duplicate broadcasts.
 /// </summary>
 public static class DataProvider
 {
-    private static StokesSnapshotPacket _stokesPacket = StokesSnapshotPacket.Default();
-    private static AudioSnapshotPacket _audioPacket   = AudioSnapshotPacket.Default();
+    /// <summary>
+    /// Audio samples from the microphone (8 000 Hz, raw Int16 cast to float).
+    /// Producer: Retriever.DataAvailable callback.
+    /// Consumer: AudioStreamer.
+    /// </summary>
+    public static readonly Channel<AudioSnapshotPacket> AudioChannel =
+        Channel.CreateUnbounded<AudioSnapshotPacket>(
+            new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
-    public static StokesSnapshotPacket StokesPacket 
-    {
-        get => Volatile.Read(ref _stokesPacket);
-        set => Volatile.Write(ref _stokesPacket, value);
-    }
-
-    public static AudioSnapshotPacket AudioPacket
-    {
-        get => Volatile.Read(ref _audioPacket);
-        set => Volatile.Write(ref _audioPacket, value);
-    }
+    /// <summary>
+    /// Stokes measurement snapshots from the PM1000.
+    /// Producer: Retriever.retrieveRegisters loop.
+    /// Consumer: StokesStreamer.
+    /// </summary>
+    public static readonly Channel<StokesSnapshotPacket> StokesChannel =
+        Channel.CreateUnbounded<StokesSnapshotPacket>(
+            new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
 }

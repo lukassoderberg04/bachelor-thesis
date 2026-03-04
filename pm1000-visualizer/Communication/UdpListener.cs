@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using pm1000_visualizer;
@@ -36,6 +37,16 @@ public class UdpListener : IDisposable
     // Synthetic sequence counters for the streamer-service raw format (no header).
     private uint _streamerStokesSeq;
     private uint _streamerRawAudioSeq;
+
+    // ── Streamer-service deduplication / downsampling ───────────────────
+    // The streamer sends the same sample in a tight spin-loop, producing
+    // thousands of duplicate packets per unique value.  For audio we
+    // downsample to exactly 8000 Hz using wall-clock timing; for stokes
+    // we deduplicate by the packet timestamp.
+    private uint _lastStreamerStokesTime = uint.MaxValue;
+    private readonly Stopwatch _rawAudioClock = new();
+    private long _rawAudioEmitted;
+    private float _latestRawNormalized;
 
     public UdpListener(int stokesPort = 5000, int rawAudioPort = 5001, int processedAudioPort = 5002)
     {
@@ -85,7 +96,12 @@ public class UdpListener : IDisposable
                         {
                             if (data.Length == PacketDeserializer.STREAMER_STOKES_SIZE)
                             {
-                                // Streamer-service raw format: single sample, no header.
+                                // Streamer sends the same stokes in a tight loop.
+                                // Deduplicate by timestamp (bytes 20-23).
+                                uint ts = BitConverter.ToUInt32(data, 20);
+                                if (ts == _lastStreamerStokesTime) continue;
+                                _lastStreamerStokesTime = ts;
+
                                 var sample = PacketDeserializer.TryDeserializeStreamerStokes(data);
                                 if (sample == null)
                                 {
@@ -113,14 +129,21 @@ public class UdpListener : IDisposable
                         {
                             if (data.Length == PacketDeserializer.STREAMER_AUDIO_SIZE)
                             {
-                                // Streamer-service raw format: single amplitude, no header.
-                                // The streamer sends a raw Int16 value cast to float (range ±32768).
-                                // Normalise to ±1 so FileSaver.SaveWav produces valid PCM.
+                                // Streamer sends the same audio sample in a tight loop.
+                                // Down-sample to exactly 8000 Hz using wall-clock timing
+                                // so we store only ~80 000 samples per 10 s instead of ~575 000+.
                                 var amplitude = PacketDeserializer.TryDeserializeStreamerAudio(data);
                                 if (amplitude == null) continue;
-                                float normalized = amplitude.Value / 32768f;
-                                var pkt = new AudioPacket(_streamerRawAudioSeq++, 8000, new[] { normalized });
+                                _latestRawNormalized = amplitude.Value / 32768f;
+
+                                if (!_rawAudioClock.IsRunning) _rawAudioClock.Start();
+                                long target = (long)(_rawAudioClock.Elapsed.TotalSeconds * 8000);
+                                if (_rawAudioEmitted >= target) continue; // not time yet
+
+                                var pkt = new AudioPacket(_streamerRawAudioSeq++, 8000,
+                                                          new[] { _latestRawNormalized });
                                 RawAudioReceived?.Invoke(pkt);
+                                _rawAudioEmitted++;
                             }
                             else
                             {

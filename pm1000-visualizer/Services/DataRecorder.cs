@@ -12,6 +12,7 @@ public class DataRecorder
     private readonly MeasurementSession _session;
     private readonly System.Diagnostics.Stopwatch _stopwatch = new();
     private readonly object _lock = new();
+    private volatile bool _stopped;
 
     public DataRecorder(MeasurementSession session)
     {
@@ -26,6 +27,7 @@ public class DataRecorder
 
     public void Stop()
     {
+        _stopped = true;   // block further Record calls FIRST
         _stopwatch.Stop();
         _session.EndTime = DateTime.Now;
     }
@@ -34,6 +36,7 @@ public class DataRecorder
 
     public void RecordStokes(StokesPacket packet)
     {
+        if (_stopped) return;
         long ms = _stopwatch.ElapsedMilliseconds;
         lock (_lock)
         {
@@ -45,6 +48,7 @@ public class DataRecorder
 
     public void RecordRawAudio(AudioPacket packet)
     {
+        if (_stopped) return;
         lock (_lock)
         {
             _session.RawAudioSampleRate = packet.SampleRateHz;
@@ -54,6 +58,7 @@ public class DataRecorder
 
     public void RecordProcessedAudio(AudioPacket packet)
     {
+        if (_stopped) return;
         lock (_lock)
         {
             _session.ProcessedAudioSampleRate = packet.SampleRateHz;

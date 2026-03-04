@@ -118,7 +118,7 @@ public static class Retriever
         const float dopResolution = 32768f;
         var dop = (float)readResponses[8].Data / dopResolution;
 
-        DataProvider.StokesPacket = new StokesSnapshotPacket(s0, s1, s2, s3, dop);
+        DataProvider.StokesChannel.Writer.TryWrite(new StokesSnapshotPacket(s0, s1, s2, s3, dop));
     }
 
     /// <summary>
@@ -128,12 +128,15 @@ public static class Retriever
     {
         waveIn.DataAvailable += (s, e) =>
         {
-            if (e.BytesRecorded < 2) return;
-
-            Int16 sample  = BitConverter.ToInt16(e.Buffer, 0); // Read the first two bytes in the buffer as Int16.
-            var amplitude = (float)sample;
-
-            DataProvider.AudioPacket = new AudioSnapshotPacket(amplitude);
+            // Read ALL samples from this buffer (not just the first one).
+            // At 8 000 Hz with a 10 ms buffer each callback contains 80 samples.
+            int sampleCount = e.BytesRecorded / 2; // 16-bit PCM = 2 bytes per sample
+            for (int i = 0; i < sampleCount; i++)
+            {
+                Int16 sample  = BitConverter.ToInt16(e.Buffer, i * 2);
+                var amplitude = (float)sample;
+                DataProvider.AudioChannel.Writer.TryWrite(new AudioSnapshotPacket(amplitude));
+            }
         };
 
         waveIn.StartRecording();
