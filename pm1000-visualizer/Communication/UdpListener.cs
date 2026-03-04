@@ -37,6 +37,7 @@ public class UdpListener : IDisposable
     // Synthetic sequence counters for the streamer-service raw format (no header).
     private uint _streamerStokesSeq;
     private uint _streamerRawAudioSeq;
+    private uint _streamerProcAudioSeq;
 
     // ── Streamer-service deduplication / downsampling ───────────────────
     // The streamer sends the same sample in a tight spin-loop, producing
@@ -47,6 +48,9 @@ public class UdpListener : IDisposable
     private readonly Stopwatch _rawAudioClock = new();
     private long _rawAudioEmitted;
     private float _latestRawNormalized;
+    private readonly Stopwatch _procAudioClock = new();
+    private long _procAudioEmitted;
+    private float _latestProcNormalized;
 
     public UdpListener(int stokesPort = 5000, int rawAudioPort = 5001, int processedAudioPort = 5002)
     {
@@ -157,10 +161,30 @@ public class UdpListener : IDisposable
                         }
                     case Channel.ProcessedAudio:
                         {
-                            var pkt = PacketDeserializer.TryDeserializeAudio(data);
-                            if (pkt == null) continue;
-                            CheckSequence(pkt.SequenceNr, ref _lastProcessedAudioSeq);
-                            ProcessedAudioReceived?.Invoke(pkt);
+                            if (data.Length == PacketDeserializer.STREAMER_AUDIO_SIZE)
+                            {
+                                // Streamer-service raw format: single amplitude, no header.
+                                var amplitude = PacketDeserializer.TryDeserializeStreamerAudio(data);
+                                if (amplitude == null) continue;
+                                _latestProcNormalized = amplitude.Value / 32768f;
+
+                                if (!_procAudioClock.IsRunning) _procAudioClock.Start();
+                                long target = (long)(_procAudioClock.Elapsed.TotalSeconds * 8000);
+                                if (_procAudioEmitted >= target) continue;
+
+                                var pkt = new AudioPacket(_streamerProcAudioSeq++, 8000,
+                                                          new[] { _latestProcNormalized });
+                                ProcessedAudioReceived?.Invoke(pkt);
+                                _procAudioEmitted++;
+                            }
+                            else
+                            {
+                                // Standard header+payload format.
+                                var pkt = PacketDeserializer.TryDeserializeAudio(data);
+                                if (pkt == null) continue;
+                                CheckSequence(pkt.SequenceNr, ref _lastProcessedAudioSeq);
+                                ProcessedAudioReceived?.Invoke(pkt);
+                            }
                             break;
                         }
                 }

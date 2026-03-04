@@ -129,13 +129,8 @@
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
                     Margin="0,2,0,6">
-            <Button x:Name="NormalizedRawButton"
-                    Content="Normalized"
-                    Style="{StaticResource DarkButton}"
-                    Click="NormalizedRaw_Click"/>
             <Button Content="Reset View"
                     Style="{StaticResource DarkButton}"
-                    Margin="8,0"
                     Click="ResetView_Click"/>
             <CheckBox x:Name="TrailCheckBox"
                       Content="Trail"

@@ -396,12 +396,6 @@ public partial class LivePage : UserControl
 
     private void StopButton_Click(object sender, RoutedEventArgs e) => DoStop();
 
-    private void NormalizedRaw_Click(object sender, RoutedEventArgs e)
-    {
-        NormalizedRawButton.Content =
-            NormalizedRawButton.Content.ToString() == "Normalized" ? "Raw" : "Normalized";
-    }
-
     private void ResetView_Click(object sender, RoutedEventArgs e) =>
         PoincareView.ZoomExtents();
 
