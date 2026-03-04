@@ -30,8 +30,8 @@ public static class Retriever
     /// </summary>
     private static readonly WaveInEvent waveIn = new()
     {
-        DeviceNumber       = 0, // Use the default mic device.
-        WaveFormat         = new WaveFormat(AUDIO_SAMPLE_RATE, BIT_DEPTH, 1),
+        DeviceNumber = 0, // Use the default mic device.
+        WaveFormat = new WaveFormat(AUDIO_SAMPLE_RATE, BIT_DEPTH, 1),
         BufferMilliseconds = BUFFER_SIZE_IN_MS // How many ms of audio the buffer will hold.
     };
 
@@ -133,7 +133,7 @@ public static class Retriever
             int sampleCount = e.BytesRecorded / 2; // 16-bit PCM = 2 bytes per sample
             for (int i = 0; i < sampleCount; i++)
             {
-                Int16 sample  = BitConverter.ToInt16(e.Buffer, i * 2);
+                Int16 sample = BitConverter.ToInt16(e.Buffer, i * 2);
                 var amplitude = (float)sample;
                 DataProvider.AudioChannel.Writer.TryWrite(new AudioSnapshotPacket(amplitude));
             }

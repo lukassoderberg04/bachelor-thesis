@@ -16,12 +16,12 @@ Write-Host ""
 
 # Shared counters (thread-safe via [ref] to volatiles)
 $stokesCount = [System.Collections.Concurrent.ConcurrentBag[int]]::new()
-$rawCount    = [System.Collections.Concurrent.ConcurrentBag[int]]::new()
-$procCount   = [System.Collections.Concurrent.ConcurrentBag[int]]::new()
+$rawCount = [System.Collections.Concurrent.ConcurrentBag[int]]::new()
+$procCount = [System.Collections.Concurrent.ConcurrentBag[int]]::new()
 
 # Sample storage for inspection
 $stokesSamples = [System.Collections.Concurrent.ConcurrentBag[string]]::new()
-$rawSamples    = [System.Collections.Concurrent.ConcurrentBag[string]]::new()
+$rawSamples = [System.Collections.Concurrent.ConcurrentBag[string]]::new()
 
 $cts = [System.Threading.CancellationTokenSource]::new()
 
