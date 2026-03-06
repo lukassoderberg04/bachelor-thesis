@@ -31,9 +31,7 @@ public static class StokesStreamer
     {
         UdpClient client = new();
 
-        // ReadAllAsync blocks until a new stokes snapshot is written to StokesChannel,
-        // then yields it immediately.  Each snapshot is sent exactly once.
-        await foreach (var packet in DataProvider.StokesChannel.Reader.ReadAllAsync(token))
+        while (!token.IsCancellationRequested)
         {
             var packet = await DataProvider.GetStokesPacket(token);
 
