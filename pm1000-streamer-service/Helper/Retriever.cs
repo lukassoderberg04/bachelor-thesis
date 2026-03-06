@@ -128,15 +128,27 @@ public static class Retriever
     {
         waveIn.DataAvailable += (s, e) =>
         {
-            if (e.BytesRecorded < 2) return;
+            int sampleCount = e.BytesRecorded / 2;
 
-            Int16 sample  = BitConverter.ToInt16(e.Buffer, 0); // Read the first two bytes in the buffer as Int16.
-            var amplitude = (float)sample;
-
-            DataProvider.TryAddAudioPacket(new AudioSnapshotPacket(amplitude));
+            handleAudioSamples(sampleCount, e);
         };
 
         waveIn.StartRecording();
+    }
+
+    /// <summary>
+    /// Reads a certain number of samples after new audio has been sampled.
+    /// </summary>
+    private static void handleAudioSamples(int sampleCount, WaveInEventArgs e)
+    {
+        for (int i = 0; i < sampleCount; i++)
+        {
+            Int16 sample = BitConverter.ToInt16(e.Buffer, i * 2);
+
+            var amplitude = (float)sample;
+
+            DataProvider.TryAddAudioPacket(new AudioSnapshotPacket(amplitude));
+        }
     }
 
     /// <summary>
