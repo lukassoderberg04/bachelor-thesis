@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -10,43 +11,72 @@ using pm1000_visualizer.Services;
 
 namespace pm1000_visualizer.Pages;
 
+/// <summary>
+/// Live measurement page — performance-oriented rewrite.
+///
+/// Architecture:
+///   • Background UDP threads write into thread-safe buffers (no Dispatcher calls).
+///   • A single 30 fps DispatcherTimer drains all buffers and updates all UI.
+///   • Trail points use a shared frozen mesh to avoid per-frame geometry allocation.
+/// </summary>
 public partial class LivePage : UserControl
 {
+    // ── Configuration ──────────────────────────────────────────────────────
+    private const double SPHERE_RADIUS = 5.0;
+    private const int MAX_TRAIL_POINTS = 80;
+    private const int AUDIO_BUFFER_SIZE = 64000;    // ~4 s at 16 kHz
+    private const int AUDIO_DISPLAY_SAMPLES = 2000; // ~125 ms visible window
+    private const int RENDER_FPS = 30;
+
+    // ── Injected state ─────────────────────────────────────────────────────
     private readonly ConnectionSettings _settings;
     private readonly MeasurementSession _session;
+
+    // ── Infrastructure ─────────────────────────────────────────────────────
     private UdpListener? _listener;
     private DataRecorder? _recorder;
-    private TestDataGenerator? _testGenerator;
-    private DispatcherTimer? _durationTimer;
+    private TestDataGenerator? _testGen;
+    private StressTestGenerator? _stressGen;
+    private DispatcherTimer? _renderTimer;   // THE single UI refresh clock
     private DispatcherTimer? _elapsedTimer;
+    private DispatcherTimer? _durationTimer;
 
-    // Poincaré sphere
-    private List<(Point3D position, int age)> _trail = new();
-    private const int TRAIL_LENGTH = 100;
-    private const double SPHERE_RADIUS = 5.0;
+    // ── Stokes buffer (written by UDP thread, drained by render timer) ─────
+    private readonly ConcurrentQueue<(Point3D pos, StokeSample sample)> _pendingStokes = new();
+    private readonly Queue<Point3D> _trailQueue = new();
+    private StokeSample _lastStokes;
+    private volatile bool _hasNewStokes;
+    private volatile bool _showTrail = true;
+
+    // ── Audio buffers (written by UDP thread, snapshot by render timer) ────
+    private readonly AudioRingBuffer _rawAudioRing = new(AUDIO_BUFFER_SIZE);
+    private readonly AudioRingBuffer _processedAudioRing = new(AUDIO_BUFFER_SIZE);
+    private long _lastRawTotal;
+    private long _lastProcTotal;
+    private bool _showOverlay;
+
+    // ── 3D scene objects (created once in OnLoaded, never rebuilt) ──────────
     private ModelVisual3D? _lightsVisual;
     private Model3D? _sphereModel;
     private ModelVisual3D? _trailVisual;
 
-    // Audio display history (rolling window)
-    private readonly Queue<float> _rawAudioHistory = new();
-    private readonly Queue<float> _processedAudioHistory = new();
-    private const int AUDIO_HISTORY_SAMPLES = 32000; // full recording buffer
-    private const int AUDIO_DISPLAY_SAMPLES = 2000;  // visible window (~125 ms at 16 kHz)
-    private long _rawAudioTotalSamples;
-    private long _processedAudioTotalSamples;
+    // ── Shared frozen mesh for trail dots ───────────────────────────────────
+    private static readonly MeshGeometry3D s_trailMesh;
 
-    // Overlay state
-    private bool _showOverlay;
-    private bool _showTrail = true;
+    static LivePage()
+    {
+        var mb = new MeshBuilder();
+        mb.AddSphere(new Point3D(0, 0, 0), 1.0, 6, 6);
+        s_trailMesh = mb.ToMesh();
+        s_trailMesh.Freeze(); // immutable → GPU-cacheable, safe to share
+    }
 
-    // Last Stokes values for display
-    private StokeSample _lastStokes;
-
-    /// <summary>Raised when measurement should end (user pressed Stop or duration expired).</summary>
+    /// <summary>Raised when the user presses Stop or the duration expires.</summary>
     public event Action? StopRequested;
 
-    // ── Construction ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // Construction
+    // ═══════════════════════════════════════════════════════════════════════
 
     public LivePage(ConnectionSettings settings, MeasurementSession session)
     {
@@ -54,131 +84,188 @@ public partial class LivePage : UserControl
         _session = session;
         InitializeComponent();
 
-        Loaded += LivePage_Loaded;
-        Unloaded += LivePage_Unloaded;
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
-    // ── Lifecycle ──────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // Lifecycle
+    // ═══════════════════════════════════════════════════════════════════════
 
-    private void LivePage_Loaded(object sender, RoutedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // UI labels
+        // Header labels
         StreamerIpText.Text = _settings.StreamerIp;
         ProcessedPortText.Text = _settings.ProcessedAudioPort.ToString();
         RawPortText.Text = _settings.RawAudioPort.ToString();
 
-        // Build 3D scene (once)
+        // ── 3D scene (created once, never rebuilt) ──────────────────────
         _sphereModel = BuildSphere();
         _lightsVisual = new ModelVisual3D { Content = BuildLights() };
+        _trailVisual = new ModelVisual3D();
 
-        // Configure ScottPlot dark theme
+        PoincareView.Children.Clear();
+        PoincareView.Children.Add(_lightsVisual);
+        PoincareView.Children.Add(new ModelVisual3D { Content = _sphereModel });
+        PoincareView.Children.Add(_trailVisual);
+        PoincareView.ZoomExtents(0);
+
+        // ── ScottPlot dark theme ────────────────────────────────────────
         ConfigurePlot(ProcessedAudioPlot);
         ConfigurePlot(RawAudioPlot);
 
-        // Start UDP listener
-        _listener = new UdpListener(_settings.StokesPort, _settings.RawAudioPort, _settings.ProcessedAudioPort);
+        // ── UDP listener ────────────────────────────────────────────────
+        _listener = new UdpListener(
+            _settings.StokesPort, _settings.RawAudioPort, _settings.ProcessedAudioPort);
         _listener.StokesReceived += OnStokesReceived;
         _listener.RawAudioReceived += OnRawAudioReceived;
         _listener.ProcessedAudioReceived += OnProcessedAudioReceived;
         _listener.PacketDropped += (exp, got) =>
-            Dispatcher.BeginInvoke(() => Logger.LogWarning($"Packet loss: expected {exp}, got {got}"));
+            Logger.LogWarning($"Packet loss: expected seq {exp}, got {got}");
         _listener.Start();
 
-        // Start recorder
+        // ── Recorder ────────────────────────────────────────────────────
         _recorder = new DataRecorder(_session);
         _recorder.Start();
 
-        // Test data generator
+        // ── Test data generators ────────────────────────────────────────
         if (_settings.IsTestMode)
         {
-            _testGenerator = new TestDataGenerator(
+            _testGen = new TestDataGenerator(
                 _settings.StokesPort, _settings.RawAudioPort, _settings.ProcessedAudioPort);
-            _testGenerator.Start();
+            _testGen.Start();
+        }
+        else if (_settings.IsStressTest)
+        {
+            _stressGen = new StressTestGenerator(
+                _settings.StokesPort, _settings.RawAudioPort,
+                _settings.StressStokesPerSecond, _settings.StressAudioPerSecond);
+            _stressGen.Start();
         }
 
-        // Duration timer (fixed-length measurement)
+        // ── Duration timer (fixed-length measurement) ───────────────────
         if (!_settings.IsIndefinite)
         {
-            _durationTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_settings.DurationSeconds) };
+            _durationTimer = new DispatcherTimer
+            { Interval = TimeSpan.FromSeconds(_settings.DurationSeconds) };
             _durationTimer.Tick += (_, _) => { _durationTimer.Stop(); DoStop(); };
             _durationTimer.Start();
         }
 
-        // Elapsed time display
+        // ── Elapsed time display ────────────────────────────────────────
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _elapsedTimer.Tick += (_, _) =>
         {
             if (_recorder != null)
-                ElapsedText.Text = TimeSpan.FromMilliseconds(_recorder.ElapsedMs).ToString(@"m\:ss");
+                ElapsedText.Text = TimeSpan.FromMilliseconds(_recorder.ElapsedMs)
+                    .ToString(@"m\:ss");
         };
         _elapsedTimer.Start();
 
-        // Initialize 3D scene — sphere and lights are added once and never removed.
-        _trailVisual = new ModelVisual3D();
-        PoincareView.Children.Clear();
-        PoincareView.Children.Add(_lightsVisual!);
-        PoincareView.Children.Add(new ModelVisual3D { Content = _sphereModel });
-        PoincareView.Children.Add(_trailVisual);
-        PoincareView.ZoomExtents(0);  // 0 ms animation = instant
+        // ── THE KEY: single render timer drives ALL visual updates ──────
+        _renderTimer = new DispatcherTimer
+        { Interval = TimeSpan.FromMilliseconds(1000.0 / RENDER_FPS) };
+        _renderTimer.Tick += RenderTick;
+        _renderTimer.Start();
     }
 
-    private void LivePage_Unloaded(object sender, RoutedEventArgs e)
-    {
-        Cleanup();
-    }
+    private void OnUnloaded(object sender, RoutedEventArgs e) => Cleanup();
 
-    // ── Stokes handling ────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // Background-thread callbacks — NO Dispatcher, NO UI, just buffer data
+    // ═══════════════════════════════════════════════════════════════════════
 
     private void OnStokesReceived(StokesPacket packet)
     {
         _recorder?.RecordStokes(packet);
 
-        bool showTrail = _showTrail;  // Cache the value without blocking
-
-        // Update trail
-
-        // Update trail
-        if (showTrail)
-        {
-            for (int i = 0; i < _trail.Count; i++)
-                _trail[i] = (_trail[i].position, _trail[i].age + 1);
-            _trail.RemoveAll(p => p.age >= TRAIL_LENGTH);
-        }
-        else
-        {
-            _trail.Clear();
-        }
-
-        StokeSample latest = default;
         foreach (var s in packet.Samples)
         {
+            // Always update readout — even when S1/S2/S3 are near-zero
+            _lastStokes = s;
+
             double len = Math.Sqrt(s.S1 * s.S1 + s.S2 * s.S2 + s.S3 * s.S3);
-            if (len < 0.001) continue;
-            latest = s;
-            if (showTrail)
-                _trail.Add((new Point3D(s.S1 / len * SPHERE_RADIUS,
-                                        s.S2 / len * SPHERE_RADIUS,
-                                        s.S3 / len * SPHERE_RADIUS), 0));
+            if (len < 0.001) continue; // skip sphere plot for degenerate vector
+
+            var pt = new Point3D(
+                s.S1 / len * SPHERE_RADIUS,
+                s.S2 / len * SPHERE_RADIUS,
+                s.S3 / len * SPHERE_RADIUS);
+            _pendingStokes.Enqueue((pt, s));
         }
-
-        _lastStokes = latest;
-        var trailSnap = _trail.ToList();
-
-        Dispatcher.BeginInvoke(() =>
-        {
-            // Only update the trail — sphere and lights stay untouched.
-            var trailGroup = new Model3DGroup();
-            foreach (var (pos, age) in trailSnap)
-                trailGroup.Children.Add(BuildTrailPoint(pos, age));
-            _trailVisual!.Content = trailGroup;
-
-            // Update readout
-            UpdateStokesDisplay(latest);
-        });
+        _hasNewStokes = true;
     }
 
-    private void UpdateStokesDisplay(StokeSample s)
+    private void OnRawAudioReceived(AudioPacket packet)
     {
+        _recorder?.RecordRawAudio(packet);
+        _rawAudioRing.Write(packet.Samples);
+    }
+
+    private void OnProcessedAudioReceived(AudioPacket packet)
+    {
+        _recorder?.RecordProcessedAudio(packet);
+        _processedAudioRing.Write(packet.Samples);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Render tick — UI thread, ~30 FPS — the ONLY place that touches UI
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private void RenderTick(object? sender, EventArgs e)
+    {
+        UpdateSphere();
+        UpdateAudioPlots();
+    }
+
+    // ── Sphere + trail ─────────────────────────────────────────────────────
+
+    private void UpdateSphere()
+    {
+        if (!_hasNewStokes) return;
+        _hasNewStokes = false;
+
+        // Drain all pending stokes into the trail queue
+        StokeSample latest = _lastStokes;
+        while (_pendingStokes.TryDequeue(out var item))
+        {
+            if (_showTrail)
+            {
+                _trailQueue.Enqueue(item.pos);
+                while (_trailQueue.Count > MAX_TRAIL_POINTS)
+                    _trailQueue.Dequeue();
+            }
+            latest = item.sample;
+        }
+        _lastStokes = latest;
+
+        if (!_showTrail)
+            _trailQueue.Clear();
+
+        // Rebuild trail visual (shared frozen mesh + transform per dot)
+        var group = new Model3DGroup();
+        int idx = 0;
+        int total = _trailQueue.Count;
+        foreach (var pos in _trailQueue)
+        {
+            double t = 1.0 - (double)idx / Math.Max(total, 1); // 1 = oldest, 0 = newest
+            byte r = (byte)(255 * (1 - t));
+            byte gb = (byte)(100 * t);
+            double size = 0.10 * (1 - t * 0.6);
+
+            var model = new GeometryModel3D(s_trailMesh,
+                new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(r, gb, gb))));
+            var xform = new Transform3DGroup();
+            xform.Children.Add(new ScaleTransform3D(size, size, size));
+            xform.Children.Add(new TranslateTransform3D(pos.X, pos.Y, pos.Z));
+            model.Transform = xform;
+            group.Children.Add(model);
+            idx++;
+        }
+        _trailVisual!.Content = group;
+
+        // Update readout labels
+        var s = _lastStokes;
         PowerText.Text = $"{s.S0:F2} µW";
         S1Text.Text = $"{s.S1:F4}";
         S2Text.Text = $"{s.S2:F4}";
@@ -187,124 +274,72 @@ public partial class LivePage : UserControl
         PolarizationText.Text = ComputePolarizationLabel(s);
     }
 
-    /// <summary>
-    /// Determines a human-readable polarization label from the Stokes parameters.
-    /// </summary>
-    private static string ComputePolarizationLabel(StokeSample s)
+    // ── Audio waveforms ────────────────────────────────────────────────────
+
+    private void UpdateAudioPlots()
     {
-        double dop = Math.Sqrt(s.S1 * s.S1 + s.S2 * s.S2 + s.S3 * s.S3);
-        if (dop < 0.01) return "Unpolarized";
-
-        double chi = 0.5 * Math.Asin(Math.Clamp(s.S3 / dop, -1, 1)) * 180.0 / Math.PI;
-        double psi = 0.5 * Math.Atan2(s.S2, s.S1) * 180.0 / Math.PI;
-        if (psi < 0) psi += 180;
-
-        if (Math.Abs(chi) > 40)
-            return s.S3 > 0 ? "Circular (Right)" : "Circular (Left)";
-        if (Math.Abs(chi) < 5)
-            return $"Linear {psi:F0}°";
-        return $"Elliptical {psi:F0}°";
-    }
-
-    // ── Audio handling ─────────────────────────────────────────────────────────
-
-    private void OnRawAudioReceived(AudioPacket packet)
-    {
-        _recorder?.RecordRawAudio(packet);
-
-        foreach (var s in packet.Samples)
-            _rawAudioHistory.Enqueue(s);
-        _rawAudioTotalSamples += packet.Samples.Length;
-        while (_rawAudioHistory.Count > AUDIO_HISTORY_SAMPLES)
-            _rawAudioHistory.Dequeue();
-
-        // Show only the most recent samples so the waveform stays readable
-        var snapshot = _rawAudioHistory.Skip(Math.Max(0, _rawAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
-                                       .Select(s => (double)s).ToArray();
-        long xEnd = _rawAudioTotalSamples;
-        long xStart = xEnd - snapshot.Length;
-
-        Dispatcher.BeginInvoke(() =>
+        // Processed audio
+        var (procData, procTotal) = _processedAudioRing.Snapshot(AUDIO_DISPLAY_SAMPLES);
+        if (procTotal != _lastProcTotal && procData.Length > 0)
         {
-            var plt = RawAudioPlot.Plot;
-            plt.Clear();
-            var sig = plt.Add.Signal(snapshot);
-            sig.Data.XOffset = xStart;
-            plt.Title($"Raw  |  {xEnd:N0} samples received  |  seq={packet.SequenceNr}");
-            plt.Axes.SetLimitsY(-1.2, 1.2);
-            plt.Axes.SetLimitsX(xStart, xEnd);
-            RawAudioPlot.Refresh();
-        });
-    }
+            _lastProcTotal = procTotal;
+            long xStart = procTotal - procData.Length;
 
-    private void OnProcessedAudioReceived(AudioPacket packet)
-    {
-        _recorder?.RecordProcessedAudio(packet);
-
-        foreach (var s in packet.Samples)
-            _processedAudioHistory.Enqueue(s);
-        _processedAudioTotalSamples += packet.Samples.Length;
-        while (_processedAudioHistory.Count > AUDIO_HISTORY_SAMPLES)
-            _processedAudioHistory.Dequeue();
-
-        // Show only the most recent samples so the waveform stays readable
-        var snapshot = _processedAudioHistory.Skip(Math.Max(0, _processedAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
-                                              .Select(s => (double)s).ToArray();
-        long xEnd = _processedAudioTotalSamples;
-        long xStart = xEnd - snapshot.Length;
-
-        Dispatcher.BeginInvoke(() =>
-        {
             var plt = ProcessedAudioPlot.Plot;
             plt.Clear();
-            var sig = plt.Add.Signal(snapshot);
+            var sig = plt.Add.Signal(procData);
             sig.Color = ScottPlot.Color.FromHex("#4A90D9");
             sig.Data.XOffset = xStart;
 
-            // Overlay raw audio on processed plot if enabled
-            if (_showOverlay && _rawAudioHistory.Count > 0)
+            // Overlay raw audio on processed plot when enabled
+            if (_showOverlay)
             {
-                var raw = _rawAudioHistory.Skip(Math.Max(0, _rawAudioHistory.Count - AUDIO_DISPLAY_SAMPLES))
-                                          .Select(s => (double)s).ToArray();
-                var overlay = plt.Add.Signal(raw);
-                overlay.Color = ScottPlot.Color.FromHex("#E74C3C");
-                overlay.LineWidth = 1;
-                overlay.Data.XOffset = xStart;
+                var (rawSnap, _) = _rawAudioRing.Snapshot(AUDIO_DISPLAY_SAMPLES);
+                if (rawSnap.Length > 0)
+                {
+                    var overlay = plt.Add.Signal(rawSnap);
+                    overlay.Color = ScottPlot.Color.FromHex("#E74C3C");
+                    overlay.LineWidth = 1;
+                    overlay.Data.XOffset = xStart;
+                }
             }
 
-            plt.Title($"Processed  |  {xEnd:N0} samples received  |  seq={packet.SequenceNr}");
-            plt.Axes.SetLimitsY(-1.2, 1.2);
-            plt.Axes.SetLimitsX(xStart, xEnd);
+            plt.Title($"Processed  |  {procTotal:N0} samples");
+            plt.Axes.SetLimitsX(xStart, procTotal);
+            plt.Axes.AutoScaleY();
             ProcessedAudioPlot.Refresh();
-        });
+        }
+
+        // Raw audio
+        var (rawData, rawTotal) = _rawAudioRing.Snapshot(AUDIO_DISPLAY_SAMPLES);
+        if (rawTotal != _lastRawTotal && rawData.Length > 0)
+        {
+            _lastRawTotal = rawTotal;
+            long xStart = rawTotal - rawData.Length;
+
+            var plt = RawAudioPlot.Plot;
+            plt.Clear();
+            var sig = plt.Add.Signal(rawData);
+            sig.Data.XOffset = xStart;
+
+            plt.Title($"Raw  |  {rawTotal:N0} samples");
+            plt.Axes.SetLimitsX(xStart, rawTotal);
+            plt.Axes.AutoScaleY();
+            RawAudioPlot.Refresh();
+        }
     }
 
-    // ── 3D scene helpers ───────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // 3D scene helpers (called once)
+    // ═══════════════════════════════════════════════════════════════════════
 
     private static Model3D BuildSphere()
     {
         var mesh = new MeshBuilder();
         mesh.AddSphere(new Point3D(0, 0, 0), SPHERE_RADIUS, 32, 32);
-        var material = new DiffuseMaterial(new SolidColorBrush(
-            Color.FromArgb(90, 160, 160, 160)));   // semi-transparent
-        var model = new GeometryModel3D(mesh.ToMesh(), material);
-        model.BackMaterial = material;
-        return model;
-    }
-
-    private static Model3D BuildTrailPoint(Point3D pos, int age)
-    {
-        double t = (double)age / TRAIL_LENGTH;
-        var color = Color.FromRgb(
-            (byte)(255 * (1 - t)),
-            (byte)(100 * t),
-            (byte)(100 * t));
-        double size = 0.08 * (1 - t * 0.5);
-
-        var mesh = new MeshBuilder();
-        mesh.AddSphere(pos, size, 12, 12);
-        return new GeometryModel3D(mesh.ToMesh(),
-            new DiffuseMaterial(new SolidColorBrush(color)));
+        var mat = new DiffuseMaterial(new SolidColorBrush(
+            Color.FromArgb(90, 160, 160, 160)));
+        return new GeometryModel3D(mesh.ToMesh(), mat) { BackMaterial = mat };
     }
 
     private static Model3DGroup BuildLights()
@@ -315,7 +350,9 @@ public partial class LivePage : UserControl
         return g;
     }
 
-    // ── ScottPlot dark theme ───────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // ScottPlot dark theme
+    // ═══════════════════════════════════════════════════════════════════════
 
     private static void ConfigurePlot(ScottPlot.WPF.WpfPlot wpfPlot)
     {
@@ -333,23 +370,34 @@ public partial class LivePage : UserControl
         plt.YLabel("Amplitude");
     }
 
-    // ── UI event handlers ──────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // Polarization label
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private static string ComputePolarizationLabel(StokeSample s)
+    {
+        double dop = Math.Sqrt(s.S1 * s.S1 + s.S2 * s.S2 + s.S3 * s.S3);
+        if (dop < 0.01) return "Unpolarized";
+
+        double chi = 0.5 * Math.Asin(Math.Clamp(s.S3 / dop, -1, 1)) * 180.0 / Math.PI;
+        double psi = 0.5 * Math.Atan2(s.S2, s.S1) * 180.0 / Math.PI;
+        if (psi < 0) psi += 180;
+
+        if (Math.Abs(chi) > 40)
+            return s.S3 > 0 ? "Circular (Right)" : "Circular (Left)";
+        if (Math.Abs(chi) < 5)
+            return $"Linear {psi:F0}°";
+        return $"Elliptical {psi:F0}°";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Button handlers
+    // ═══════════════════════════════════════════════════════════════════════
 
     private void StopButton_Click(object sender, RoutedEventArgs e) => DoStop();
 
-    private void NormalizedRaw_Click(object sender, RoutedEventArgs e)
-    {
-        // Toggle label — raw data is a stretch goal
-        if (NormalizedRawButton.Content.ToString() == "Normalized")
-            NormalizedRawButton.Content = "Raw";
-        else
-            NormalizedRawButton.Content = "Normalized";
-    }
-
-    private void ResetView_Click(object sender, RoutedEventArgs e)
-    {
+    private void ResetView_Click(object sender, RoutedEventArgs e) =>
         PoincareView.ZoomExtents();
-    }
 
     private void OverlayReference_Click(object sender, RoutedEventArgs e)
     {
@@ -362,19 +410,9 @@ public partial class LivePage : UserControl
         _showTrail = TrailCheckBox.IsChecked == true;
     }
 
-    private void ProcSpec_Click(object sender, RoutedEventArgs e)
-    {
-        MessageBox.Show("Spectrogram view is a stretch goal — coming soon.",
-            "Info", MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
-    private void RawSpec_Click(object sender, RoutedEventArgs e)
-    {
-        MessageBox.Show("Spectrogram view is a stretch goal — coming soon.",
-            "Info", MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
-    // ── Stop & cleanup ─────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // Stop & cleanup
+    // ═══════════════════════════════════════════════════════════════════════
 
     private void DoStop()
     {
@@ -385,10 +423,13 @@ public partial class LivePage : UserControl
 
     private void Cleanup()
     {
+        _renderTimer?.Stop();
         _elapsedTimer?.Stop();
         _durationTimer?.Stop();
-        _testGenerator?.Stop();
-        _testGenerator?.Dispose();
+        _testGen?.Stop();
+        _testGen?.Dispose();
+        _stressGen?.Stop();
+        _stressGen?.Dispose();
         _listener?.Stop();
         _listener?.Dispose();
     }

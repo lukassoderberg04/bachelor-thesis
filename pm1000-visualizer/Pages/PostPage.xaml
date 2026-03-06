@@ -10,22 +10,24 @@
             <RowDefinition Height="Auto"/>
             <!-- Summary -->
             <RowDefinition Height="3*"/>
-            <!-- Poincaré playback -->
-            <RowDefinition Height="*"/>
-            <!-- Audio players -->
+            <!-- Poincaré sphere -->
+            <RowDefinition Height="Auto"/>
+            <!-- Processed audio -->
+            <RowDefinition Height="Auto"/>
+            <!-- Raw audio -->
             <RowDefinition Height="Auto"/>
             <!-- New Measurement -->
         </Grid.RowDefinitions>
 
-        <!-- ═══ Row 0: Header & save buttons ═══════════════════════════════ -->
+        <!-- ═══ Row 0: Header + save ═══════════════════════════════════ -->
         <StackPanel Margin="0,0,0,8">
             <TextBlock Text="PM1000 Post"
-                    FontSize="20"
-                    FontWeight="Bold"
-                    Foreground="White"/>
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Foreground="White"/>
 
             <StackPanel Orientation="Horizontal"
-                    Margin="0,10,0,0">
+                        Margin="0,10,0,0">
                 <Button Content="💾  Save All to Folder…"
                         Style="{StaticResource AccentButton}"
                         FontSize="13"
@@ -53,37 +55,37 @@
 
             <TextBlock x:Name="SaveStatusText"
                        Foreground="#FF90EE90"
-                    FontSize="12"
+                       FontSize="12"
                        Margin="0,6,0,0"
                        Visibility="Collapsed"/>
         </StackPanel>
 
-        <!-- ═══ Row 1: Summary info ════════════════════════════════════════ -->
+        <!-- ═══ Row 1: Summary ═════════════════════════════════════════ -->
         <StackPanel Grid.Row="1"
-                Orientation="Horizontal"
-                Margin="0,0,0,8">
+                    Orientation="Horizontal"
+                    Margin="0,0,0,8">
             <TextBlock Text="Duration: "
-                    Foreground="#FFAAAAAA"/>
+                       Foreground="#FFAAAAAA"/>
             <TextBlock x:Name="DurationText"
-                    Foreground="White"/>
-            <TextBlock Text="  │  Stokes samples: "
-                    Foreground="#FFAAAAAA"
-                    Margin="16,0,0,0"/>
+                       Foreground="White"/>
+            <TextBlock Text="  │  Stokes: "
+                       Foreground="#FFAAAAAA"
+                       Margin="16,0,0,0"/>
             <TextBlock x:Name="StokesCountText"
-                    Foreground="White"/>
+                       Foreground="White"/>
             <TextBlock Text="  │  Raw audio: "
-                    Foreground="#FFAAAAAA"
-                    Margin="16,0,0,0"/>
+                       Foreground="#FFAAAAAA"
+                       Margin="16,0,0,0"/>
             <TextBlock x:Name="RawCountText"
-                    Foreground="White"/>
-            <TextBlock Text="  │  Processed audio: "
-                    Foreground="#FFAAAAAA"
-                    Margin="16,0,0,0"/>
+                       Foreground="White"/>
+            <TextBlock Text="  │  Processed: "
+                       Foreground="#FFAAAAAA"
+                       Margin="16,0,0,0"/>
             <TextBlock x:Name="ProcessedCountText"
-                    Foreground="White"/>
+                       Foreground="White"/>
         </StackPanel>
 
-        <!-- ═══ Row 2: Poincaré playback ═══════════════════════════════════ -->
+        <!-- ═══ Row 2: Poincaré sphere playback ═══════════════════════ -->
         <Border Grid.Row="2"
                 BorderThickness="1"
                 BorderBrush="#FF555555"
@@ -97,127 +99,217 @@
                 </Grid.RowDefinitions>
 
                 <TextBlock Text="Poincaré Playback"
-                        Foreground="White"
+                           Foreground="White"
                            FontWeight="Bold"
-                        Margin="10,6"/>
+                           Margin="10,6"/>
 
                 <h:HelixViewport3D x:Name="PlaybackView"
-                        Grid.Row="1"
+                                   Grid.Row="1"
                                    ShowCoordinateSystem="True"
                                    CoordinateSystemLabelForeground="White"/>
 
                 <StackPanel Grid.Row="2"
-                        Orientation="Horizontal"
-                        Margin="10,6">
-                    <Button x:Name="PlayBtn"
-                            Content="▶  Play"
-                            Style="{StaticResource DarkButton}"
-                            FontSize="12"
-                            Padding="10,5"
-                            Click="Play_Click"/>
-                    <Button Content="⏹  Stop"
-                            Style="{StaticResource DarkButton}"
-                            FontSize="12"
-                            Padding="10,5"
-                            Margin="6,0"
-                            Click="StopPlayback_Click"/>
-                    <Slider x:Name="PlaybackSlider"
-                            Width="350"
-                            VerticalAlignment="Center"
-                            Margin="10,0"
-                            ValueChanged="PlaybackSlider_ValueChanged"/>
-                    <TextBlock x:Name="PlaybackTimeText"
-                            Text="0:00 / 0:00"
-                               Foreground="White"
-                            VerticalAlignment="Center"
-                            Margin="8,0"/>
+                            Margin="10,6">
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,0,0,4">
+                        <Button x:Name="SpherePlayBtn"
+                                Content="▶  Play"
+                                Style="{StaticResource DarkButton}"
+                                FontSize="12"
+                                Padding="12,5"
+                                Click="SpherePlay_Click"/>
+                        <Button Content="⏹  Stop"
+                                Style="{StaticResource DarkButton}"
+                                FontSize="12"
+                                Padding="12,5"
+                                Margin="6,0"
+                                Click="SphereStop_Click"/>
+                        <Button Content="⏪ −5 s"
+                                Style="{StaticResource DarkButton}"
+                                FontSize="11"
+                                Padding="10,5"
+                                Margin="12,0,0,0"
+                                Click="SphereBack_Click"/>
+                        <Button Content="⏩ +5 s"
+                                Style="{StaticResource DarkButton}"
+                                FontSize="11"
+                                Padding="10,5"
+                                Margin="6,0"
+                                Click="SphereFwd_Click"/>
+                        <TextBlock x:Name="SphereTimeText"
+                                   Text="0:00 / 0:00"
+                                   Foreground="White"
+                                   VerticalAlignment="Center"
+                                   Margin="16,0,0,0"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+                    <Slider x:Name="SphereSlider"
+                            Minimum="0"
+                            Maximum="1"
+                            ValueChanged="SphereSlider_ValueChanged"
+                            Thumb.DragStarted="SphereSlider_DragStarted"
+                            Thumb.DragCompleted="SphereSlider_DragCompleted"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ═══ Row 3: Audio players ═══════════════════════════════════════ -->
-        <Grid Grid.Row="3"
-                Margin="0,0,0,6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- Processed player -->
-            <Border BorderThickness="1"
-                    BorderBrush="#FF555555"
-                    CornerRadius="4">
-                <StackPanel Margin="12,8">
-                    <TextBlock Text="Processed Audio"
-                            Foreground="White"
-                            FontWeight="Bold"
-                            Margin="0,0,0,6"/>
-                    <StackPanel Orientation="Horizontal">
-                        <Button x:Name="PlayProcessedBtn"
-                                Content="▶"
-                                Style="{StaticResource DarkButton}"
-                                FontSize="11"
-                                Padding="10,4"
-                                Click="PlayProcessed_Click"/>
-                        <Button Content="⏹"
-                                Style="{StaticResource DarkButton}"
-                                FontSize="11"
-                                Padding="10,4"
-                                Margin="5,0"
-                                Click="StopProcessed_Click"/>
-                        <TextBlock x:Name="ProcessedStatusText"
-                                Text="Ready"
-                                   Foreground="#FFAAAAAA"
-                                VerticalAlignment="Center"
-                                Margin="10,0"/>
-                    </StackPanel>
-                    <MediaElement x:Name="ProcessedMedia"
-                            LoadedBehavior="Manual"
-                                  UnloadedBehavior="Manual"
-                            Volume="1"/>
+        <!-- ═══ Row 3: Processed Audio ═════════════════════════════════ -->
+        <Border Grid.Row="3"
+                BorderThickness="1"
+                BorderBrush="#FF555555"
+                CornerRadius="4"
+                Margin="0,0,0,6"
+                Padding="12,8">
+            <StackPanel>
+                <TextBlock Text="Processed Audio"
+                           Foreground="White"
+                           FontWeight="Bold"
+                           Margin="0,0,0,4"/>
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,0,4">
+                    <Button x:Name="ProcPlayBtn"
+                            Content="▶  Play"
+                            Style="{StaticResource DarkButton}"
+                            FontSize="11"
+                            Padding="10,4"
+                            Click="ProcPlay_Click"/>
+                    <Button Content="⏹"
+                            Style="{StaticResource DarkButton}"
+                            FontSize="11"
+                            Padding="10,4"
+                            Margin="5,0"
+                            Click="ProcStop_Click"/>
+                    <Button Content="⏪ −5 s"
+                            Style="{StaticResource DarkButton}"
+                            FontSize="10"
+                            Padding="8,4"
+                            Margin="10,0,0,0"
+                            Click="ProcBack_Click"/>
+                    <Button Content="⏩ +5 s"
+                            Style="{StaticResource DarkButton}"
+                            FontSize="10"
+                            Padding="8,4"
+                            Margin="5,0"
+                            Click="ProcFwd_Click"/>
+                    <TextBlock x:Name="ProcTimeText"
+                               Text="0:00 / 0:00"
+                               Foreground="White"
+                               VerticalAlignment="Center"
+                               Margin="12,0,0,0"
+                               FontSize="13"/>
+                    <TextBlock Text="  Vol:"
+                               Foreground="#FFAAAAAA"
+                               VerticalAlignment="Center"
+                               Margin="12,0,4,0"/>
+                    <Slider x:Name="ProcVolumeSlider"
+                            Width="90"
+                            Minimum="0"
+                            Maximum="1"
+                            Value="1"
+                            VerticalAlignment="Center"
+                            ValueChanged="ProcVolume_Changed"/>
+                    <TextBlock x:Name="ProcStatusText"
+                               Text=""
+                               Foreground="#FFAAAAAA"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"/>
                 </StackPanel>
-            </Border>
+                <Slider x:Name="ProcSlider"
+                        Minimum="0"
+                        Maximum="1"
+                        ValueChanged="ProcSlider_ValueChanged"
+                        Thumb.DragStarted="ProcSlider_DragStarted"
+                        Thumb.DragCompleted="ProcSlider_DragCompleted"/>
+                <MediaElement x:Name="ProcessedMedia"
+                              LoadedBehavior="Manual"
+                              UnloadedBehavior="Manual"
+                              Volume="1"
+                              MediaOpened="ProcMedia_Opened"
+                              MediaFailed="Media_Failed"
+                              MediaEnded="ProcMedia_Ended"/>
+            </StackPanel>
+        </Border>
 
-            <!-- Raw player -->
-            <Border Grid.Column="2"
-                    BorderThickness="1"
-                    BorderBrush="#FF555555"
-                    CornerRadius="4">
-                <StackPanel Margin="12,8">
-                    <TextBlock Text="Raw Reference Audio"
-                            Foreground="White"
-                            FontWeight="Bold"
-                            Margin="0,0,0,6"/>
-                    <StackPanel Orientation="Horizontal">
-                        <Button x:Name="PlayRawBtn"
-                                Content="▶"
-                                Style="{StaticResource DarkButton}"
-                                FontSize="11"
-                                Padding="10,4"
-                                Click="PlayRaw_Click"/>
-                        <Button Content="⏹"
-                                Style="{StaticResource DarkButton}"
-                                FontSize="11"
-                                Padding="10,4"
-                                Margin="5,0"
-                                Click="StopRaw_Click"/>
-                        <TextBlock x:Name="RawStatusText"
-                                Text="Ready"
-                                   Foreground="#FFAAAAAA"
-                                VerticalAlignment="Center"
-                                Margin="10,0"/>
-                    </StackPanel>
-                    <MediaElement x:Name="RawMedia"
-                            LoadedBehavior="Manual"
-                                  UnloadedBehavior="Manual"
-                            Volume="1"/>
+        <!-- ═══ Row 4: Raw Reference Audio ═════════════════════════════ -->
+        <Border Grid.Row="4"
+                BorderThickness="1"
+                BorderBrush="#FF555555"
+                CornerRadius="4"
+                Margin="0,0,0,6"
+                Padding="12,8">
+            <StackPanel>
+                <TextBlock Text="Raw Reference Audio"
+                           Foreground="White"
+                           FontWeight="Bold"
+                           Margin="0,0,0,4"/>
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,0,4">
+                    <Button x:Name="RawPlayBtn"
+                            Content="▶  Play"
+                            Style="{StaticResource DarkButton}"
+                            FontSize="11"
+                            Padding="10,4"
+                            Click="RawPlay_Click"/>
+                    <Button Content="⏹"
+                            Style="{StaticResource DarkButton}"
+                            FontSize="11"
+                            Padding="10,4"
+                            Margin="5,0"
+                            Click="RawStop_Click"/>
+                    <Button Content="⏪ −5 s"
+                            Style="{StaticResource DarkButton}"
+                            FontSize="10"
+                            Padding="8,4"
+                            Margin="10,0,0,0"
+                            Click="RawBack_Click"/>
+                    <Button Content="⏩ +5 s"
+                            Style="{StaticResource DarkButton}"
+                            FontSize="10"
+                            Padding="8,4"
+                            Margin="5,0"
+                            Click="RawFwd_Click"/>
+                    <TextBlock x:Name="RawTimeText"
+                               Text="0:00 / 0:00"
+                               Foreground="White"
+                               VerticalAlignment="Center"
+                               Margin="12,0,0,0"
+                               FontSize="13"/>
+                    <TextBlock Text="  Vol:"
+                               Foreground="#FFAAAAAA"
+                               VerticalAlignment="Center"
+                               Margin="12,0,4,0"/>
+                    <Slider x:Name="RawVolumeSlider"
+                            Width="90"
+                            Minimum="0"
+                            Maximum="1"
+                            Value="1"
+                            VerticalAlignment="Center"
+                            ValueChanged="RawVolume_Changed"/>
+                    <TextBlock x:Name="RawStatusText"
+                               Text=""
+                               Foreground="#FFAAAAAA"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"/>
                 </StackPanel>
-            </Border>
-        </Grid>
+                <Slider x:Name="RawSlider"
+                        Minimum="0"
+                        Maximum="1"
+                        ValueChanged="RawSlider_ValueChanged"
+                        Thumb.DragStarted="RawSlider_DragStarted"
+                        Thumb.DragCompleted="RawSlider_DragCompleted"/>
+                <MediaElement x:Name="RawMedia"
+                              LoadedBehavior="Manual"
+                              UnloadedBehavior="Manual"
+                              Volume="1"
+                              MediaOpened="RawMedia_Opened"
+                              MediaFailed="Media_Failed"
+                              MediaEnded="RawMedia_Ended"/>
+            </StackPanel>
+        </Border>
 
-        <!-- ═══ Row 4: New Measurement ═════════════════════════════════════ -->
-        <Button Grid.Row="4"
+        <!-- ═══ Row 5: New Measurement ═════════════════════════════════ -->
+        <Button Grid.Row="5"
                 Content="New Measurement"
                 Style="{StaticResource AccentButton}"
                 FontSize="14"

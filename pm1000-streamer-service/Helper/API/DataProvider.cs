@@ -4,8 +4,11 @@ using pm1000_streamer_service.PM1000;
 namespace pm1000_streamer_service.API;
 
 /// <summary>
-/// Will provide the producers with a way to fill data (in a thread safe way)
-/// that the consumers will read, and hence consume.
+/// Thread-safe producer/consumer queues between the Retriever (producers)
+/// and the Streamer tasks (consumers).
+///
+/// Each item written to a channel is sent exactly once over UDP.
+/// No more tight-loop duplicate broadcasts.
 /// </summary>
 public static class DataProvider
 {

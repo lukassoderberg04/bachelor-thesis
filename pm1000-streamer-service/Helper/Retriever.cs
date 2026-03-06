@@ -30,8 +30,8 @@ public static class Retriever
     /// </summary>
     private static readonly WaveInEvent waveIn = new()
     {
-        DeviceNumber       = 0, // Use the default mic device.
-        WaveFormat         = new WaveFormat(AUDIO_SAMPLE_RATE, BIT_DEPTH, 1),
+        DeviceNumber = 0, // Use the default mic device.
+        WaveFormat = new WaveFormat(AUDIO_SAMPLE_RATE, BIT_DEPTH, 1),
         BufferMilliseconds = BUFFER_SIZE_IN_MS // How many ms of audio the buffer will hold.
     };
 

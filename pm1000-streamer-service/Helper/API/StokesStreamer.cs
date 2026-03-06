@@ -30,8 +30,10 @@ public static class StokesStreamer
     private async static Task runStokesServer(CancellationToken token)
     {
         UdpClient client = new();
-        
-        while (!token.IsCancellationRequested)
+
+        // ReadAllAsync blocks until a new stokes snapshot is written to StokesChannel,
+        // then yields it immediately.  Each snapshot is sent exactly once.
+        await foreach (var packet in DataProvider.StokesChannel.Reader.ReadAllAsync(token))
         {
             var packet = await DataProvider.GetStokesPacket(token);
 

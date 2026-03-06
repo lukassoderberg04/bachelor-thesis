@@ -31,7 +31,9 @@ public static class AudioStreamer
     {
         UdpClient client = new();
 
-        while (!token.IsCancellationRequested)
+        // ReadAllAsync blocks until a new sample is written to AudioChannel,
+        // then yields it immediately.  Each sample is sent exactly once.
+        await foreach (var packet in DataProvider.AudioChannel.Reader.ReadAllAsync(token))
         {
             var packet = await DataProvider.GetAudioPacket(token);
 
