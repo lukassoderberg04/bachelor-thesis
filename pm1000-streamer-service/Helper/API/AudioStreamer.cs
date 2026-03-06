@@ -34,12 +34,11 @@ public static class AudioStreamer
 
         while (!token.IsCancellationRequested)
         {
-            await foreach(var packet in DataProvider.GetAllAudioPacketsAsync(token))
-            {
-                var buffer = packet.GetBytes();
+            var packet = await DataProvider.GetAudioPacketAsync();
 
-                await client.SendAsync(buffer, buffer.Length, Endpoint);
-            }
+            var buffer = packet.GetBytes();
+
+            await client.SendAsync(buffer, buffer.Length, Endpoint);
         }
     }
 }
