@@ -32,10 +32,8 @@ public static class AudioStreamer
     {
         UdpClient client = new();
 
-        while (!token.IsCancellationRequested)
+        await foreach (var packet in DataProvider.GetAllAudioPacketsAsync())
         {
-            var packet = await DataProvider.GetAudioPacketAsync();
-
             var buffer = packet.GetBytes();
 
             await client.SendAsync(buffer, buffer.Length, Endpoint);

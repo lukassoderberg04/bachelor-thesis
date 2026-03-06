@@ -31,10 +31,8 @@ public static class StokesStreamer
     {
         UdpClient client = new();
 
-        while (!token.IsCancellationRequested)
+        await foreach (var packet in DataProvider.GetAllStokesPacketsAsync())
         {
-            var packet = await DataProvider.GetStokesPacketAsync();
-
             var buffer = packet.GetBytes();
 
             await client.SendAsync(buffer, buffer.Length, Endpoint);

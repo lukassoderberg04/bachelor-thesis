@@ -59,9 +59,9 @@ public static class DataProvider
     /// <summary>
     /// Recieves the a async list of all stokes packets currently in the channel.
     /// </summary>
-    public static IEnumerable<StokesSnapshotPacket> GetAllStokesPacketsAsync(CancellationToken token = default)
+    public static IAsyncEnumerable<StokesSnapshotPacket> GetAllStokesPacketsAsync(CancellationToken token = default)
     {
-        return stokesChannel.Reader.ReadAllAsync(token).ToBlockingEnumerable(token);
+        return stokesChannel.Reader.ReadAllAsync(token);
     }
 
     /// <summary>
@@ -91,8 +91,8 @@ public static class DataProvider
     /// <summary>
     /// Recieves the a async list of all audio packets currently in the channel.
     /// </summary>
-    public static IEnumerable<AudioSnapshotPacket> GetAllAudioPacketsAsync(CancellationToken token = default)
+    public static IAsyncEnumerable<AudioSnapshotPacket> GetAllAudioPacketsAsync(CancellationToken token = default)
     {
-        return audioChannel.Reader.ReadAllAsync(token).ToBlockingEnumerable(token);
+        return audioChannel.Reader.ReadAllAsync(token);
     }
 }
