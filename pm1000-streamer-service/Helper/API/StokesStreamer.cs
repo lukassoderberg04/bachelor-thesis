@@ -33,11 +33,12 @@ public static class StokesStreamer
 
         while (!token.IsCancellationRequested)
         {
-            var packet = await DataProvider.GetStokesPacket(token);
+            await foreach (var packet in DataProvider.GetAllStokesPacketsAsync(token))
+            {
+                var buffer = packet.GetBytes();
 
-            var buffer = packet.GetBytes();
-
-            await client.SendAsync(buffer, buffer.Length, Endpoint);
+                await client.SendAsync(buffer, buffer.Length, Endpoint);
+            }
         }
     }
 }

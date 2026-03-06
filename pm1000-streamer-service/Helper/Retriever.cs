@@ -13,7 +13,7 @@ public static class Retriever
     /// <summary>
     /// Audio sample rate in Hz.
     /// </summary>
-    private const int AUDIO_SAMPLE_RATE = 8000;
+    private const int AUDIO_SAMPLE_RATE = 40000;
 
     /// <summary>
     /// The amount of bits per data measuring point.

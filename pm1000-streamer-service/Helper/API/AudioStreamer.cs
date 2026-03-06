@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using pm1000_streamer_service.PM1000;
+using System.Net;
 using System.Net.Sockets;
 
 namespace pm1000_streamer_service.API;
@@ -33,11 +34,12 @@ public static class AudioStreamer
 
         while (!token.IsCancellationRequested)
         {
-            var packet = await DataProvider.GetAudioPacket(token);
+            await foreach(var packet in DataProvider.GetAllAudioPacketsAsync(token))
+            {
+                var buffer = packet.GetBytes();
 
-            var buffer = packet.GetBytes();
-
-            await client.SendAsync(buffer, buffer.Length, Endpoint);
+                await client.SendAsync(buffer, buffer.Length, Endpoint);
+            }
         }
     }
 }

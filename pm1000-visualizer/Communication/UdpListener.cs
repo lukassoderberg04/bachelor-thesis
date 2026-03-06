@@ -42,7 +42,7 @@ public class UdpListener : IDisposable
     // ── Streamer-service deduplication / downsampling ───────────────────
     // The streamer sends the same sample in a tight spin-loop, producing
     // thousands of duplicate packets per unique value.  For audio we
-    // downsample to exactly 8000 Hz using wall-clock timing; for stokes
+    // downsample to exactly 40000 Hz using wall-clock timing; for stokes
     // we deduplicate by the packet timestamp.
     private uint _lastStreamerStokesTime = uint.MaxValue;
     private readonly Stopwatch _rawAudioClock = new();
@@ -134,17 +134,17 @@ public class UdpListener : IDisposable
                             if (data.Length == PacketDeserializer.STREAMER_AUDIO_SIZE)
                             {
                                 // Streamer sends the same audio sample in a tight loop.
-                                // Down-sample to exactly 8000 Hz using wall-clock timing
+                                // Down-sample to exactly 40000 Hz using wall-clock timing
                                 // so we store only ~80 000 samples per 10 s instead of ~575 000+.
                                 var amplitude = PacketDeserializer.TryDeserializeStreamerAudio(data);
                                 if (amplitude == null) continue;
                                 _latestRawNormalized = amplitude.Value / 32768f;
 
                                 if (!_rawAudioClock.IsRunning) _rawAudioClock.Start();
-                                long target = (long)(_rawAudioClock.Elapsed.TotalSeconds * 8000);
+                                long target = (long)(_rawAudioClock.Elapsed.TotalSeconds * 40000);
                                 if (_rawAudioEmitted >= target) continue; // not time yet
 
-                                var pkt = new AudioPacket(_streamerRawAudioSeq++, 8000,
+                                var pkt = new AudioPacket(_streamerRawAudioSeq++, 40000,
                                                           new[] { _latestRawNormalized });
                                 RawAudioReceived?.Invoke(pkt);
                                 _rawAudioEmitted++;
@@ -169,10 +169,10 @@ public class UdpListener : IDisposable
                                 _latestProcNormalized = amplitude.Value / 32768f;
 
                                 if (!_procAudioClock.IsRunning) _procAudioClock.Start();
-                                long target = (long)(_procAudioClock.Elapsed.TotalSeconds * 8000);
+                                long target = (long)(_procAudioClock.Elapsed.TotalSeconds * 40000);
                                 if (_procAudioEmitted >= target) continue;
 
-                                var pkt = new AudioPacket(_streamerProcAudioSeq++, 8000,
+                                var pkt = new AudioPacket(_streamerProcAudioSeq++, 40000,
                                                           new[] { _latestProcNormalized });
                                 ProcessedAudioReceived?.Invoke(pkt);
                                 _procAudioEmitted++;

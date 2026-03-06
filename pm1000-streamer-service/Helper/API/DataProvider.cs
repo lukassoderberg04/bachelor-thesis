@@ -16,9 +16,8 @@ public static class DataProvider
     /// the two settings below are used. This disables locking mechanisms that could worsen performance, especially if
     /// it doesn't have to be thread safe since only one thread is accessing them.
     /// </summary>
-    private static readonly BoundedChannelOptions boundedOptions = new(10)
+    private static readonly UnboundedChannelOptions unboundedOptions = new()
     {
-        FullMode = BoundedChannelFullMode.Wait,
         SingleReader = true,
         SingleWriter = true
     };
@@ -26,12 +25,12 @@ public static class DataProvider
     /// <summary>
     /// The thread safe FIFO queue to be used for storing stokes packets.
     /// </summary>
-    private static readonly Channel<StokesSnapshotPacket> stokesChannel = Channel.CreateBounded<StokesSnapshotPacket>(boundedOptions);
+    private static readonly Channel<StokesSnapshotPacket> stokesChannel = Channel.CreateUnbounded<StokesSnapshotPacket>(unboundedOptions);
 
     /// <summary>
     /// The thread safe FIFO queue to be used for storing audio packets.
     /// </summary>
-    private static readonly Channel<AudioSnapshotPacket> audioChannel = Channel.CreateBounded<AudioSnapshotPacket>(boundedOptions);
+    private static readonly Channel<AudioSnapshotPacket> audioChannel = Channel.CreateUnbounded<AudioSnapshotPacket>(unboundedOptions);
 
     /// <summary>
     /// Adds stokes packet to the channel. Waits for the queue to be consumed if full.
@@ -52,9 +51,17 @@ public static class DataProvider
     /// <summary>
     /// Wait until a stokes packet is avaible and reads it from the FIFO queue.
     /// </summary>
-    public static async Task<StokesSnapshotPacket> GetStokesPacket(CancellationToken token = default)
+    public static async Task<StokesSnapshotPacket> GetStokesPacketAsync(CancellationToken token = default)
     {
         return await stokesChannel.Reader.ReadAsync(token);
+    }
+
+    /// <summary>
+    /// Recieves the a async list of all stokes packets currently in the channel.
+    /// </summary>
+    public static IAsyncEnumerable<StokesSnapshotPacket> GetAllStokesPacketsAsync(CancellationToken token = default)
+    {
+        return stokesChannel.Reader.ReadAllAsync(token);
     }
 
     /// <summary>
@@ -76,8 +83,16 @@ public static class DataProvider
     /// <summary>
     /// Wait until a audio packet is avaible and reads it from the FIFO queue.
     /// </summary>
-    public static async Task<AudioSnapshotPacket> GetAudioPacket(CancellationToken token = default)
+    public static async Task<AudioSnapshotPacket> GetAudioPacketAsync(CancellationToken token = default)
     {
         return await audioChannel.Reader.ReadAsync(token);
+    }
+
+    /// <summary>
+    /// Recieves the a async list of all audio packets currently in the channel.
+    /// </summary>
+    public static IAsyncEnumerable<AudioSnapshotPacket> GetAllAudioPacketsAsync(CancellationToken token = default)
+    {
+        return audioChannel.Reader.ReadAllAsync(token);
     }
 }
