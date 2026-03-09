@@ -1,4 +1,6 @@
-﻿using FTD3XXWU_NET;
+﻿using System.Drawing.Imaging;
+using System.Text;
+using FTD3XXWU_NET;
 
 namespace pm1000_streamer_service;
 
@@ -7,72 +9,107 @@ namespace pm1000_streamer_service;
 /// </summary>
 public class FTDIOffline : IFTDI
 {
-    public bool IsOpen => throw new NotImplementedException();
+    private static Random rnd = new Random();
 
-    public List<FTDI.FT_PIPE_INFORMATION> DataPipeInformation => throw new NotImplementedException();
+    public bool IsOpen => false;
+
+    public List<FTDI.FT_PIPE_INFORMATION> DataPipeInformation => new List<FTDI.FT_PIPE_INFORMATION>();
 
     public FTDI.FT_STATUS AbortPipe(byte pipe)
     {
-        throw new NotImplementedException();
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS Close()
     {
-        throw new NotImplementedException();
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS CreateDeviceInfoList(out uint deviceCount)
     {
-        throw new NotImplementedException();
+        deviceCount = 3;
+
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS FlushPipe(byte pipe)
     {
-        throw new NotImplementedException();
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS GetChipConfiguration(FTDI.FT_60XCONFIGURATION config)
     {
-        throw new NotImplementedException();
+        config = new FTDI.FT_60XCONFIGURATION();
+
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS GetDeviceInfoList(out List<FTDI.FT_DEVICE_INFO> deviceInfoList)
     {
-        throw new NotImplementedException();
+        deviceInfoList = new();
+
+        FTDI.FT_DEVICE_INFO[] devices =
+        {
+            new FTDI.FT_DEVICE_INFO()
+            {
+                SerialNumber = Encoding.UTF8.GetBytes("51512312341412"),
+                Description  = Encoding.UTF8.GetBytes("DEVICE NR 1")
+            },
+            new FTDI.FT_DEVICE_INFO()
+            {
+                SerialNumber = Encoding.UTF8.GetBytes("51234131231232"),
+                Description  = Encoding.UTF8.GetBytes("DEVICE NR 2")
+            },
+            new FTDI.FT_DEVICE_INFO()
+            {
+                SerialNumber = Encoding.UTF8.GetBytes("51421412316161"),
+                Description  = Encoding.UTF8.GetBytes("DEVICE NR 3")
+            }
+        };
+
+        deviceInfoList.AddRange(devices);
+
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS GetNumberOfDevicesConnected(out uint numberOfDevicesConnected)
     {
-        throw new NotImplementedException();
+        numberOfDevicesConnected = 3;
+
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS OpenBySerialNumber(string serialNumber)
     {
-        throw new NotImplementedException();
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS ReadPipe(byte pipe, byte[] buffer, uint bytesToRead, ref uint bytesRead)
     {
-        throw new NotImplementedException();
+        rnd.NextBytes(buffer);
+
+        bytesRead = bytesToRead;
+
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS SetChipConfiguration(FTDI.FT_60XCONFIGURATION config)
     {
-        throw new NotImplementedException();
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS SetNotificationCallback(FTDI.FT_NOTIFICATION_CALLBACK_DATA callback, nint userData)
     {
-        throw new NotImplementedException();
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS SetPipeTimeout(byte pipeId, uint timeoutMs)
     {
-        throw new NotImplementedException();
+        return FTDI.FT_STATUS.FT_OK;
     }
 
     public FTDI.FT_STATUS WritePipe(byte pipe, byte[] buffer, uint bytesToWrite, ref uint bytesWritten)
     {
-        throw new NotImplementedException();
+        return FTDI.FT_STATUS.FT_OK;
     }
 }
