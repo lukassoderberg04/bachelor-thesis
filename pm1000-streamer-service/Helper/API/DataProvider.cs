@@ -10,25 +10,12 @@ namespace pm1000_streamer_service.API;
 public static class DataProvider
 {
     /// <summary>
-    /// Unbounded options which are used for stokes and audio channels.
-    /// The single reader and single writer makes sure that the channels
-    /// doesn't add locking mechanisms that would be required if multiple
-    /// threads would access them... but in this case it will just work as
-    /// a thread safe queue.
-    /// </summary>
-    private static readonly UnboundedChannelOptions unboundedOptions = new()
-    {
-        SingleReader = true,
-        SingleWriter = true
-    };
-
-    /// <summary>
     /// Bounded options specifically for the stokes to filter channel.
     /// Since this is written to when also writing to the stokes channel,
     /// it will drop in case of it being full since the filtering may not
     /// be used.
     /// </summary>
-    private static readonly BoundedChannelOptions boundedOptions = new(100)
+    private static readonly BoundedChannelOptions boundedOptionsToFilter = new(1_000)
     {
         FullMode = BoundedChannelFullMode.DropWrite,
         SingleReader = true,
@@ -36,20 +23,34 @@ public static class DataProvider
     };
 
     /// <summary>
+    /// Makes sure that the threads wait when the channel is full... this indicates that the
+    /// streamer service needs to consume some packets and send them over the "network".
+    /// Since all of the channels are only operated by one producer and one consumer,
+    /// you don't have to implement costly locking mechanism and therefore the single reader
+    /// and writer are enabled.
+    /// </summary>
+    private static readonly BoundedChannelOptions boundedOptionsDefault = new(10_000)
+    {
+        FullMode = BoundedChannelFullMode.Wait,
+        SingleReader = true,
+        SingleWriter = true
+    };
+
+    /// <summary>
     /// The thread safe FIFO queue to be used for storing stokes packets.
     /// </summary>
-    private static readonly Channel<StokesSnapshotPacket> stokesChannel = Channel.CreateUnbounded<StokesSnapshotPacket>(unboundedOptions);
+    private static readonly Channel<StokesSnapshotPacket> stokesChannel = Channel.CreateBounded<StokesSnapshotPacket>(boundedOptionsDefault);
 
     /// <summary>
     /// Thread safe FIFO queue to be used for storing stokes packet that will be used in filtering.
     /// Has to be bounded due to it maybe not being used.
     /// </summary>
-    private static readonly Channel<StokesSnapshotPacket> stokesToFilterChannel = Channel.CreateBounded<StokesSnapshotPacket>(boundedOptions);
+    private static readonly Channel<StokesSnapshotPacket> stokesToFilterChannel = Channel.CreateBounded<StokesSnapshotPacket>(boundedOptionsToFilter);
 
     /// <summary>
     /// The thread safe FIFO queue to be used for storing audio packets.
     /// </summary>
-    private static readonly Channel<AudioSnapshotPacket> audioChannel = Channel.CreateUnbounded<AudioSnapshotPacket>(unboundedOptions);
+    private static readonly Channel<AudioSnapshotPacket> audioChannel = Channel.CreateBounded<AudioSnapshotPacket>(boundedOptionsDefault);
 
     /// <summary>
     /// Adds stokes packet to the channel. Waits for the queue to be consumed if full.
