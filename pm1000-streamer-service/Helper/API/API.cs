@@ -9,10 +9,11 @@ public static class API
     /// <summary>
     /// Starts the API services specified.
     /// </summary>
-    public static void Start(CancellationToken token, bool enableAudio = true, bool enableStokes = true, bool enableRest = true)
+    public static void Start(CancellationToken token, bool enableAudio = true, bool enableStokes = true, bool enableRest = true, bool enableAudioFiltered = true)
     {
-        if (enableAudio)  AudioStreamer.Start(token);
-        if (enableStokes) StokesStreamer.Start(token);
-        if (enableRest)   RestServer.Start(token);
+        if (enableAudio)         AudioStreamer.Start(token);
+        if (enableAudioFiltered) AudioFilteredStreamer.Start(token);
+        if (enableStokes)        StokesStreamer.Start(token);
+        if (enableRest)          RestServer.Start(token);
     }
 }
