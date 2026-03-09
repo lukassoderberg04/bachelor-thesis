@@ -1,5 +1,4 @@
-﻿using pm1000_streamer_service.PM1000;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 
 namespace pm1000_streamer_service.API;
