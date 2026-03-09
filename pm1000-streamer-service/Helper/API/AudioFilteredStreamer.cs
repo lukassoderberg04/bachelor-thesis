@@ -15,7 +15,7 @@ public static class AudioFilteredStreamer
 
     public static readonly IPEndPoint Endpoint = new IPEndPoint(IPAddress.Loopback, AUDIO_PORT);
 
-    private static IFilter filter = new NoFilter();
+    public static IFilter Filter = new NoFilter();
 
     /// <summary>
     /// Start the Audio Filtered streamer service.
@@ -23,6 +23,8 @@ public static class AudioFilteredStreamer
     public static Task Start(IFilter filter, CancellationToken token)
     {
         Logger.LogInfo("Starting Audio Filtered server on a different thread...");
+
+        Filter = filter;
 
         return Task.Run(() => runAudioFilteredServer(token));
     }
@@ -37,7 +39,7 @@ public static class AudioFilteredStreamer
 
         await foreach (var packet in DataProvider.GetAllStokesToFilterPacketsAsync())
         {
-            var audioPacket = filter.ProcessStokesPacket(packet);
+            var audioPacket = Filter.ProcessStokesPacket(packet);
 
             var buffer = audioPacket.GetBytes();
 
