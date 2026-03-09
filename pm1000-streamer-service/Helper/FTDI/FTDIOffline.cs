@@ -1,5 +1,4 @@
-﻿using System.Drawing.Imaging;
-using System.Text;
+﻿using System.Text;
 using FTD3XXWU_NET;
 
 namespace pm1000_streamer_service;
@@ -86,6 +85,8 @@ public class FTDIOffline : IFTDI
 
     public FTDI.FT_STATUS ReadPipe(byte pipe, byte[] buffer, uint bytesToRead, ref uint bytesRead)
     {
+        Thread.Sleep(1); // Simulate some delay.
+
         rnd.NextBytes(buffer);
 
         bytesRead = bytesToRead;
