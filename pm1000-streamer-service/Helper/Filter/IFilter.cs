@@ -8,7 +8,7 @@ namespace pm1000_streamer_service.Filter;
 public interface IFilter
 {
     /// <summary>
-    /// Process incoming stokes packet and output an audio magnitude.
+    /// Process incoming stokes packet and output an audio packet.
     /// </summary>
-    float ProcessStokesPacket(StokesSnapshotPacket stokesPacket);
+    abstract AudioSnapshotPacket ProcessStokesPacket(StokesSnapshotPacket stokesPacket);
 }

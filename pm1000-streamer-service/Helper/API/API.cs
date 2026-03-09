@@ -1,4 +1,6 @@
-﻿namespace pm1000_streamer_service.API;
+﻿using pm1000_streamer_service.Filter;
+
+namespace pm1000_streamer_service.API;
 
 /// <summary>
 /// The interface of which other application will use to configure this service
@@ -12,7 +14,7 @@ public static class API
     public static void Start(CancellationToken token, bool enableAudio = true, bool enableStokes = true, bool enableRest = true, bool enableAudioFiltered = true)
     {
         if (enableAudio)         AudioStreamer.Start(token);
-        if (enableAudioFiltered) AudioFilteredStreamer.Start(token);
+        if (enableAudioFiltered) AudioFilteredStreamer.Start(new NoFilter(), token);
         if (enableStokes)        StokesStreamer.Start(token);
         if (enableRest)          RestServer.Start(token);
     }

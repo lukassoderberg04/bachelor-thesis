@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using pm1000_streamer_service.Filter;
+using System.Net;
 using System.Net.Sockets;
 
 namespace pm1000_streamer_service.API;
@@ -14,10 +15,12 @@ public static class AudioFilteredStreamer
 
     public static readonly IPEndPoint Endpoint = new IPEndPoint(IPAddress.Loopback, AUDIO_PORT);
 
+    private static IFilter filter = new NoFilter();
+
     /// <summary>
     /// Start the Audio Filtered streamer service.
     /// </summary>
-    public static Task Start(CancellationToken token)
+    public static Task Start(IFilter filter, CancellationToken token)
     {
         Logger.LogInfo("Starting Audio Filtered server on a different thread...");
 
@@ -34,9 +37,9 @@ public static class AudioFilteredStreamer
 
         await foreach (var packet in DataProvider.GetAllStokesToFilterPacketsAsync())
         {
-            var buffer = packet.GetBytes();
+            var audioPacket = filter.ProcessStokesPacket(packet);
 
-            throw new NotImplementedException();
+            var buffer = audioPacket.GetBytes();
 
             await client.SendAsync(buffer, buffer.Length, Endpoint);
         }
