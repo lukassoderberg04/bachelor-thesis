@@ -56,7 +56,7 @@ Console.CancelKeyPress += (s, e) =>
 
 Retriever.Start(tokenSrc.Token);
 
-API.Start(tokenSrc.Token, enableRest: false, enableAudioFiltered: false);
+API.Start(tokenSrc.Token, enableRest: false);
 
 while (!tokenSrc.Token.IsCancellationRequested) 
 { 

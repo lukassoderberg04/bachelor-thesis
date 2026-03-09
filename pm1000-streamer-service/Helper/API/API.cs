@@ -14,7 +14,7 @@ public static class API
     public static void Start(CancellationToken token, bool enableAudio = true, bool enableStokes = true, bool enableRest = true, bool enableAudioFiltered = true)
     {
         if (enableAudio)         AudioStreamer.Start(token);
-        if (enableAudioFiltered) AudioFilteredStreamer.Start(new NoFilter(), token);
+        if (enableAudioFiltered) AudioFilteredStreamer.Start(DerivativeFilter.Instance, token);
         if (enableStokes)        StokesStreamer.Start(token);
         if (enableRest)          RestServer.Start(token);
     }
