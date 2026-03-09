@@ -1,7 +1,4 @@
-﻿using System.Net;
-using System.Net.Sockets;
-
-namespace pm1000_streamer_service.API;
+﻿namespace pm1000_streamer_service.API;
 
 /// <summary>
 /// The interface of which other application will use to configure this service
