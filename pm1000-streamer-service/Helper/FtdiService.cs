@@ -13,7 +13,7 @@ public static class FtdiService
     /// <summary>
     /// The FTDI instance.
     /// </summary>
-    public static IFTDI Ftdi { get; } = new FTDIOffline();
+    public static IFTDI Ftdi { get; } = new FTDIOnline();
 
     /// <summary>
     /// Wraps around a Ftdi property and checks if it's already open and returns the value.
