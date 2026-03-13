@@ -77,7 +77,12 @@ class PM1000ResultFileReader:
             self.Close()
             return None
         
-        return [float(x.strip()) for x in line.split(',')]
+        values = [int(x.strip()) for x in line.split(',')]
+
+        if not len(values) == 5:
+            raise RuntimeError(f"File was missing a value when reading line at line: {self._fileHandle.tell()}")
+
+        return PM1000Measurment(values[0], values[1], values[2], values[3], values[4])
     
     """
         Closes the handle to the file.
@@ -100,3 +105,29 @@ class PM1000ResultFileReader:
     """
     def __exit__(self, *args): 
         self.Close()
+
+"""
+    A class modeling the measurment retrieved from a file.
+"""
+class PM1000Measurment:
+    def __init__(self, timestamp: int, s0: int, s1: int, s2: int, s3: int):
+        self._timestamp = timestamp
+        self._s0        = s0
+        self._s1        = s1
+        self._s2        = s2
+        self._s3        = s3
+
+    def GetTimestamp(self) -> int:
+        return self._timestamp
+    
+    def GetS0(self) -> int:
+        return self._s0
+    
+    def GetS1(self) -> int:
+        return self._s1
+
+    def GetS2(self) -> int:
+        return self._s2
+
+    def GetS3(self) -> int:
+        return self._s3
