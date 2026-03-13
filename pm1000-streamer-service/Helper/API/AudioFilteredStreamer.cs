@@ -11,7 +11,7 @@ namespace pm1000_streamer_service.API;
 /// </summary>
 public static class AudioFilteredStreamer
 {
-    public static readonly int AUDIO_PORT = 5003;
+    public static readonly int AUDIO_PORT = 5002;
 
     public static readonly IPEndPoint Endpoint = new IPEndPoint(IPAddress.Loopback, AUDIO_PORT);
 
