@@ -12,21 +12,34 @@ import re as regex
     A class that can open a result file and retrieve the stokes vectors
     and also the attributes of the recording (from a PM1000 recording).
 """
-class PM1000ResultFileReader:
-    def __init__(self, filePath: Path, chunkSize: int) -> "PM1000ResultFileReader":
+class ResultFileReader:
+    def __init__(self, filePath: Path, chunkSize: int = 1) -> "ResultFileReader":
         self._filePath                            = filePath
         self._chunkSize                           = chunkSize
         self._fileHandle: Optional[TextIOWrapper] = None
         self._attributes: dict[str, str]          = {}
+        self._nextSampleIndex                     = 0
 
         if not self._filePath.exists():
             raise FileNotFoundError(f"The file in question wasn't found: {self._filePath}")
         
     """
+        Returns the attributes after opening the file.
+    """
+    def GetAttributes(self) -> dict[str, str]:
+        return self._attributes
+    
+    """
+        Returns the index of the next sample index.
+    """
+    def GetNextSampleIndex(self) -> int:
+        return self._nextSampleIndex
+
+    """
         Parses the headers and fills in the attribute list.
     """
     def _parseHeader(self):
-        """
+        r"""
             ^     - Start of line.
             \s*   - Match whitespaces (\s = whitespace, * = 0 or more).
             (\w+) - Create a group, which is defined by parenthesis, which contains words (\w = letter).
@@ -36,11 +49,17 @@ class PM1000ResultFileReader:
             ;     - Match this token.
             $     - Marks end of line.
         """
-        headerPattern: regex.Pattern = regex.compile(r"^ \s* (\w+) \s* = \s* ['\"]? (.*?) ['\"]? \s* ; \s* $")
+        headerPattern: regex.Pattern = regex.compile(r"^#\s*(\w+)\s*=\s*['\"]?(.*?)['\"]?\s*;\s*$")
+
+        # Read the first line and just throw it away.
+        _ = self._fileHandle.readline()
         
         while True:
             lastPos = self._fileHandle.tell()
             line    = self._fileHandle.readline()
+
+            if not line:
+                break
 
             match   = headerPattern.match(line)
 
@@ -61,6 +80,7 @@ class PM1000ResultFileReader:
     def Open(self):
         # Open a read handle to the file.
         self._fileHandle = self._filePath.open("r", encoding="utf-8")
+        self._nextSampleIndex = 0
 
         self._parseHeader()
 
@@ -68,7 +88,7 @@ class PM1000ResultFileReader:
         Gets the next list of samples from the file.
         Returns None if there's no more samples to read.
     """
-    def GetNextSample(self) -> Optional[list[float]]:
+    def GetNextSample(self) -> Optional["PM1000Measurment"]:
         if not self._fileHandle:
             raise RuntimeError("File must be open before reading!")
         
@@ -81,6 +101,8 @@ class PM1000ResultFileReader:
 
         if not len(values) == 5:
             raise RuntimeError(f"File was missing a value when reading line at line: {self._fileHandle.tell()}")
+        
+        self._nextSampleIndex += 1
 
         return PM1000Measurment(values[0], values[1], values[2], values[3], values[4])
     
@@ -98,6 +120,7 @@ class PM1000ResultFileReader:
     """
     def __enter__(self): 
         self.Open()
+        return self
     
     """
         If using 'with' on the class for reading,
