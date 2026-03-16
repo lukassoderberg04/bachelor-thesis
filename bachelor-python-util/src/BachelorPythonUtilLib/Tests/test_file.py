@@ -55,3 +55,11 @@ class TestPM1000FileParsing(unittest.TestCase):
             row = reader.GetNextSampleIndex()
             
         self.assertEqual(row, 2048, f"The last row of the file doesn't match the end of the file. Read {row}.")
+
+    def test_parse_all_samples(self):
+        samples: list[File.PM1000Measurment] = []
+
+        with (File.PM1000ResultFileReader(self._fileToParse) as reader):
+            samples = reader.GetAllSamples()
+
+        self.assertEqual(len(samples), 2048, f"The amount of samples retrieved after parsing all samples didn't match with the expected. Got {len(samples)}.")

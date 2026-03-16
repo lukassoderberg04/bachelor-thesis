@@ -2,6 +2,8 @@ from pathlib import Path
 from io import TextIOWrapper
 from typing import Optional
 import re as regex
+import wave
+import numpy
 
 """
     File module contains classes and functions that are important
@@ -108,6 +110,23 @@ class PM1000ResultFileReader:
         return PM1000Measurment(values[0], values[1], values[2], values[3], values[4])
     
     """
+        Returns all samples from a file as a list.
+    """
+    def GetAllSamples(self) -> list["PM1000Measurment"]:
+        if not self._fileHandle:
+            raise RuntimeError("File must be open before reading!")
+        
+        samples: list[PM1000Measurment] = []
+
+        while True:
+            sample = self.GetNextSample()
+
+            if sample:
+                samples.append(sample)
+            else:
+                return samples
+    
+    """
         Closes the handle to the file.
     """
     def Close(self):
@@ -155,3 +174,62 @@ class PM1000Measurment:
 
     def GetS3(self) -> int:
         return self._s3
+    
+"""
+    The wave file reader reads the audio data from
+    the files.
+"""
+class WaveFileReader:
+    def __init__(self, filePath: Path):
+        self._filePath = filePath
+        self._waveHandle: Optional[wave.Wave_read] = None
+
+    """
+        Opens the wave file to read from it.
+    """
+    def Open(self):
+        self._waveHandle = wave.open(self._filePath, 'rb')
+
+    """
+        Closes the wave file.
+    """
+    def Close(self):
+        self._waveHandle.close()
+
+    """
+        Reads all values from only the first channel and returns
+        the array of values.
+    """
+    def ReadAllSamplesFromFirstChannel(self) -> numpy.array:
+        channels = self._waveHandle.getnchannels()
+        sampleWidth = self._waveHandle.getsampwidth()
+
+        if sampleWidth == 1:
+            dtype = numpy.uint8
+        elif sampleWidth == 2:
+            dtype = numpy.uint16
+        elif sampleWidth == 4:
+            dtype = numpy.uint32
+        else:
+            raise RuntimeError(f"The wave file reader doesn't support {sampleWidth * 8} bit files!")
+        
+        rawData = self._waveHandle.readframes(self._waveHandle.getnframes()) # A long array of bytes.
+        audioTable = numpy.frombuffer(rawData, dtype=dtype).reshape(-1, channels) # A table where each column specifies a channel (list of samples).
+
+        # Return all rows (:), but just get the column 0. Hence, return only channel 0.
+        return audioTable[:, 0]
+
+    """
+        If using 'with' on the class for reading,
+        makes sure that on enter it opens the file handle.
+    """
+    def __enter__(self): 
+        self.Open()
+        return self
+    
+    """
+        If using 'with' on the class for reading,
+        makes sure that on leave it closes the file handle.
+    """
+    def __exit__(self, *args): 
+        self.Close()
