@@ -181,7 +181,7 @@ class PM1000Measurment:
 """
 class WaveFileReader:
     def __init__(self, filePath: Path):
-        self._filePath = filePath
+        self._filePath = str(filePath)
         self._waveHandle: Optional[wave.Wave_read] = None
 
     """
@@ -201,6 +201,9 @@ class WaveFileReader:
         the array of values.
     """
     def ReadAllSamplesFromFirstChannel(self) -> numpy.array:
+        if not self._waveHandle:
+            raise RuntimeError("File must be open before reading!")
+
         channels = self._waveHandle.getnchannels()
         sampleWidth = self._waveHandle.getsampwidth()
 
@@ -218,6 +221,12 @@ class WaveFileReader:
 
         # Return all rows (:), but just get the column 0. Hence, return only channel 0.
         return audioTable[:, 0]
+    
+    def GetSamplingFrequency(self) -> int:
+        if not self._waveHandle:
+            raise RuntimeError("File must be open before reading!")
+        
+        return self._waveHandle.getframerate()
 
     """
         If using 'with' on the class for reading,
