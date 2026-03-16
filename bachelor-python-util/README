@@ -4,4 +4,5 @@ This python library project intends to serve utility functions for making the wo
 ## Modules
 In this library, there's different modules depending on the use case.
 
-### PM1000
+### File
+Contains utilities for handling the different file types that are used for the bachelor thesis. These include for example PM1000 result files and Wave files.

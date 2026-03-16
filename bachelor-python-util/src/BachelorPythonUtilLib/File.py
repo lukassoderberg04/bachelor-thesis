@@ -4,16 +4,17 @@ from typing import Optional
 import re as regex
 
 """
-    PM1000 module contains classes and functions that are important
-    for retrieving and communicating with the PM1000 polarimeter.
+    File module contains classes and functions that are important
+    for retrieving and communicating with different file formats
+    that are used by the bachelor thesis project.
 """
 
 """
     A class that can open a result file and retrieve the stokes vectors
     and also the attributes of the recording (from a PM1000 recording).
 """
-class ResultFileReader:
-    def __init__(self, filePath: Path, chunkSize: int = 1) -> "ResultFileReader":
+class PM1000ResultFileReader:
+    def __init__(self, filePath: Path, chunkSize: int = 1) -> "PM1000ResultFileReader":
         self._filePath                            = filePath
         self._chunkSize                           = chunkSize
         self._fileHandle: Optional[TextIOWrapper] = None

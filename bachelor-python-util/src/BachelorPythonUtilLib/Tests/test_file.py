@@ -1,5 +1,5 @@
 from pathlib import Path
-import PM1000
+import File
 import unittest
 
 """
@@ -19,7 +19,7 @@ class TestPM1000FileParsing(unittest.TestCase):
         self._fileToParse = Path(__file__).parent / "Data" / "test_data.txt"
 
     def test_parsing_header_from_file(self):
-        with (PM1000.ResultFileReader(self._fileToParse) as reader):
+        with (File.PM1000ResultFileReader(self._fileToParse) as reader):
             attributes = reader.GetAttributes()
 
             self.assertEqual(attributes.get("ATE"), "16", f"Couldn't read ATE attribute from data file. Read {attributes.get("ATE")}.")
@@ -29,7 +29,7 @@ class TestPM1000FileParsing(unittest.TestCase):
             self.assertEqual(attributes.get("CyclicRecording"), "0", f"Couldn't read CyclicRecording attribute from data file. Read {attributes.get("CyclicRecording")}.")
 
     def test_parsing_data_from_file(self):        
-        with (PM1000.ResultFileReader(self._fileToParse) as reader):
+        with (File.PM1000ResultFileReader(self._fileToParse) as reader):
             data0 = reader.GetNextSample()
             data1 = reader.GetNextSample()
 
@@ -48,7 +48,7 @@ class TestPM1000FileParsing(unittest.TestCase):
     def test_parse_file_until_end(self):
         row = 0
         
-        with (PM1000.ResultFileReader(self._fileToParse) as reader):
+        with (File.PM1000ResultFileReader(self._fileToParse) as reader):
             while reader.GetNextSample():
                 continue
             
