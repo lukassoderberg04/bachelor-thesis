@@ -10,7 +10,7 @@ Formula:
 - X(f) = FFT{x(t)}
 - Y(f) = FFT{y(t)}
 - H(f) = Y(f) / X(f)
-- Y_hat(f) = X(f) * H(f)
+- Y_hat(f) = X(f) \* H(f)
 
 Run:
 
