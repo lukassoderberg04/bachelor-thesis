@@ -210,9 +210,9 @@ class WaveFileReader:
         if sampleWidth == 1:
             dtype = numpy.uint8
         elif sampleWidth == 2:
-            dtype = numpy.uint16
+            dtype = numpy.int16
         elif sampleWidth == 4:
-            dtype = numpy.uint32
+            dtype = numpy.int32
         else:
             raise RuntimeError(f"The wave file reader doesn't support {sampleWidth * 8} bit files!")
         
@@ -227,6 +227,78 @@ class WaveFileReader:
             raise RuntimeError("File must be open before reading!")
         
         return self._waveHandle.getframerate()
+
+    """
+        If using 'with' on the class for reading,
+        makes sure that on enter it opens the file handle.
+    """
+    def __enter__(self): 
+        self.Open()
+        return self
+    
+    """
+        If using 'with' on the class for reading,
+        makes sure that on leave it closes the file handle.
+    """
+    def __exit__(self, *args): 
+        self.Close()
+
+"""
+    Class for creating and writing to wave files.
+"""
+class WaveFileWriter:
+    def __init__(self, filePath: Path, samplingFrequency: int, channels: int = 1, sampleWidth: int = 2):
+        self._filePath    = str(filePath)
+        self._frequency   = samplingFrequency
+        self._channels    = channels    # How many columns of audio data to write.
+        self._sampleWidth = sampleWidth # Ex 2 means 2 * 8 bits, hence 16 bits.
+        self._waveHandle: Optional[wave.Wave_write] = None
+
+    """
+        Opens the file and sets all the differents attributes of
+        the file to that specified in the constructor.
+    """
+    def Open(self):
+        self._waveHandle = wave.open(self._filePath, 'wb')
+        self._waveHandle.setnchannels(self._channels)
+        self._waveHandle.setsampwidth(self._sampleWidth)
+        self._waveHandle.setframerate(self._frequency)
+
+    """
+        Writes the samples to the file. Samples has to floats.
+    """
+    def WriteSamples(self, samples: numpy.ndarray[float]):
+        if not self._waveHandle:
+            raise RuntimeError("File must be open before writing!")
+        
+        # Make sure that the values are normalized between -1 and 1.
+        maxVal = numpy.max(numpy.abs(samples))
+        if maxVal > 0:
+            samples = samples / maxVal
+
+        if self._sampleWidth == 1:
+            # 8-bit is unsigned (0 till 255) using the WAV-format, where silence = 128.
+            outData = ((samples + 1.0) * 127.5).astype(numpy.uint8)
+            
+        elif self._sampleWidth == 2:
+            # 16-bit signed (-32768 till 32767).
+            outData = (samples * 32767).astype(numpy.int16)
+            
+        elif self._sampleWidth == 4:
+            # 32-bit signed (-2147483648 till 2147483647).
+            outData = (samples * 2147483647).astype(numpy.int32)
+            
+        else:
+            raise RuntimeError(f"Support for {self._sampleWidth * 8} bit is not implemented.")
+        
+        self._waveHandle.writeframes(outData.tobytes())
+
+    """
+        Closes the file handle.
+    """
+    def Close(self):
+        if self._waveHandle:
+            self._waveHandle.close()
 
     """
         If using 'with' on the class for reading,
