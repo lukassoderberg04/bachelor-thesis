@@ -1,0 +1,8 @@
+# Bachelor Python Util
+This python library project intends to serve utility functions for making the work of generating figures for the bachelor thesis and retrieving and processing the stokes vector from a file.
+
+## Modules
+In this library, there's different modules depending on the use case.
+
+### File
+Contains utilities for handling the different file types that are used for the bachelor thesis. These include for example PM1000 result files and Wave files.

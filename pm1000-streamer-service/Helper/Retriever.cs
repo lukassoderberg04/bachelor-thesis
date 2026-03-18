@@ -13,7 +13,7 @@ public static class Retriever
     /// <summary>
     /// Audio sample rate in Hz.
     /// </summary>
-    private const int AUDIO_SAMPLE_RATE = 8000;
+    private const int AUDIO_SAMPLE_RATE = 40000;
 
     /// <summary>
     /// The amount of bits per data measuring point.
@@ -30,8 +30,8 @@ public static class Retriever
     /// </summary>
     private static readonly WaveInEvent waveIn = new()
     {
-        DeviceNumber       = 0, // Use the default mic device.
-        WaveFormat         = new WaveFormat(AUDIO_SAMPLE_RATE, BIT_DEPTH, 1),
+        DeviceNumber = 0, // Use the default mic device.
+        WaveFormat = new WaveFormat(AUDIO_SAMPLE_RATE, BIT_DEPTH, 1),
         BufferMilliseconds = BUFFER_SIZE_IN_MS // How many ms of audio the buffer will hold.
     };
 
@@ -118,7 +118,7 @@ public static class Retriever
         const float dopResolution = 32768f;
         var dop = (float)readResponses[8].Data / dopResolution;
 
-        DataProvider.StokesPacket = new StokesSnapshotPacket(s0, s1, s2, s3, dop);
+        DataProvider.TryAddStokesPacket(new StokesSnapshotPacket(s0, s1, s2, s3, dop));
     }
 
     /// <summary>
@@ -128,15 +128,27 @@ public static class Retriever
     {
         waveIn.DataAvailable += (s, e) =>
         {
-            if (e.BytesRecorded < 2) return;
+            int sampleCount = e.BytesRecorded / 2;
 
-            Int16 sample  = BitConverter.ToInt16(e.Buffer, 0); // Read the first two bytes in the buffer as Int16.
-            var amplitude = (float)sample;
-
-            DataProvider.AudioPacket = new AudioSnapshotPacket(amplitude);
+            handleAudioSamples(sampleCount, e);
         };
 
         waveIn.StartRecording();
+    }
+
+    /// <summary>
+    /// Reads a certain number of samples after new audio has been sampled.
+    /// </summary>
+    private static void handleAudioSamples(int sampleCount, WaveInEventArgs e)
+    {
+        for (int i = 0; i < sampleCount; i++)
+        {
+            Int16 sample = BitConverter.ToInt16(e.Buffer, i * 2);
+
+            var amplitude = (float)sample;
+
+            DataProvider.TryAddAudioPacket(new AudioSnapshotPacket(amplitude));
+        }
     }
 
     /// <summary>

@@ -24,15 +24,16 @@ public static class StokesStreamer
     }
 
     /// <summary>
-    /// Configures the Stokes udp client and start sending data.
+    /// Configures the Stokes udp client and start sending data. Only runs
+    /// when there's data to be sent.
     /// </summary>
     private async static Task runStokesServer(CancellationToken token)
     {
         UdpClient client = new();
-        
-        while (!token.IsCancellationRequested)
+
+        await foreach (var packet in DataProvider.GetAllStokesPacketsAsync())
         {
-            var buffer = DataProvider.StokesPacket.GetBytes();
+            var buffer = packet.GetBytes();
 
             await client.SendAsync(buffer, buffer.Length, Endpoint);
         }

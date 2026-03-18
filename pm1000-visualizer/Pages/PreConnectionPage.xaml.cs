@@ -49,12 +49,35 @@ public partial class PreConnectionPage : UserControl
             StokesPort = stokesPort,
             RawAudioPort = rawPort,
             ProcessedAudioPort = procPort,
-            IsTestMode = TestModeCheck.IsChecked == true,
+            IsTestMode = TestModeRadio.IsChecked == true,
+            IsStressTest = StressTestRadio.IsChecked == true,
+            StressStokesPerSecond = (int)StokesRateSlider.Value,
+            StressAudioPerSecond = (int)AudioRateSlider.Value,
             IsIndefinite = !isFixed,
             DurationSeconds = durationSec
         };
 
         ConnectRequested?.Invoke(settings);
+    }
+
+    private void StressTestRadio_Changed(object sender, RoutedEventArgs e)
+    {
+        if (StressPanel != null)
+            StressPanel.Visibility = StressTestRadio.IsChecked == true
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+    }
+
+    private void StokesRateSlider_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (StokesRateLabel != null)
+            StokesRateLabel.Text = ((int)e.NewValue).ToString("N0");
+    }
+
+    private void AudioRateSlider_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (AudioRateLabel != null)
+            AudioRateLabel.Text = ((int)e.NewValue).ToString("N0");
     }
 
     private void ShowError(string message)
