@@ -15,7 +15,7 @@ use ndarray::prelude::*;
 
 use crate::{
     signal_processing::{highpass, pca, stft},
-    streaming::{AudioUdpSenderOld, StokesUdpListener},
+    streaming::{AudioUdpSender, StokesUdpListener},
 };
 
 // Constants

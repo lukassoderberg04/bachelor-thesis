@@ -1,71 +1,30 @@
-// TODO: Eventually look over this for any discreapancies with the rest of the signal analyzer
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 
-use std::net::UdpSocket;
-
-/// Sends processed audio samples to the visualizer over UDP on port 5001.
-///
-/// PACKET FORMAT (little-endian) — must stay in sync with
-/// `PacketDeserializer.TryDeserializeAudio` in `pm1000-visualizer`:
-///
-///   Header – 10 bytes:
-///     u32  sequence_nr    – wraps at 2^32, used to detect dropped packets
-///     u32  sample_rate_hz – e.g. 16000
-///     u16  block_size     – number of f32 samples that follow
-///
-///   Payload – 4 bytes × block_size:
-///     f32  amplitude      – one audio sample, typically −1.0 … +1.0
-///
-/// Usage:
-///   let mut sender = AudioUdpSender::new("127.0.0.1", 16000)?;
-///   sender.send_block(&samples)?;
-pub struct AudioUdpSenderOld {
+pub struct AudioUdpSender {
     socket: UdpSocket,
-    target: String,
-    sample_rate_hz: u32,
-    sequence_nr: u32,
+    target: SocketAddr,
 }
 
-impl AudioUdpSenderOld {
-    pub const AUDIO_PORT: u16 = 5001;
-    pub const HEADER_SIZE: usize = 10; // 4 + 4 + 2 bytes
+impl AudioUdpSender {
+    pub fn bind<T: ToSocketAddrs, V: ToSocketAddrs>(addr: T, target: V) -> Result<Self, String> {
+        let socket = UdpSocket::bind(addr).map_err(|err| err.to_string())?;
+        let target = target
+            .to_socket_addrs()
+            .map_err(|err| err.to_string())?
+            .next()
+            .ok_or("No valid target address.")?;
 
-    /// Creates a new sender. `target_ip` is the IP of the machine running the visualizer.
-    pub fn bind(target_ip: &str, sample_rate_hz: u32) -> std::io::Result<Self> {
-        let socket = UdpSocket::bind("0.0.0.0:0")?; // OS picks an ephemeral source port
-        Ok(Self {
-            socket,
-            target: format!("{}:{}", target_ip, Self::AUDIO_PORT),
-            sample_rate_hz,
-            sequence_nr: 0,
-        })
+        Ok(Self { socket, target })
     }
 
-    /// Serializes `samples` into the wire format and sends one UDP packet.
-    /// Returns the number of bytes sent, or an IO error.
-    pub fn send_block(&mut self, samples: &[f32]) -> std::io::Result<usize> {
-        let payload = self.serialize(samples);
-        let sent = self.socket.send_to(&payload, &self.target)?;
-        self.sequence_nr = self.sequence_nr.wrapping_add(1);
-        Ok(sent)
+    pub fn send(&self, amplitude: f64, timestamp: u32) -> Result<(), String> {
+        let mut buf = Vec::new();
+
+        buf.extend_from_slice(&timestamp.to_le_bytes());
+        buf.extend_from_slice(&(amplitude as f32).to_le_bytes());
+
+        self.socket.send_to(&buf, self.target).map_err(|err| err.to_string())?;
+
+        Ok(())
     }
-
-    // ── Private helpers ────────────────────────────────────────────────────────
-
-    fn serialize(&self, samples: &[f32]) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(Self::HEADER_SIZE + samples.len() * 4);
-
-        buf.extend_from_slice(&self.sequence_nr.to_le_bytes());
-        buf.extend_from_slice(&self.sample_rate_hz.to_le_bytes());
-        buf.extend_from_slice(&(samples.len() as u16).to_le_bytes());
-
-        for &s in samples {
-            buf.extend_from_slice(&s.to_le_bytes());
-        }
-
-        buf
-    }
-}
-
-struct AudioUdpSender {
-    
 }
