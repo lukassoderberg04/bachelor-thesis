@@ -52,14 +52,13 @@ fn main() {
 
     // Initiate channels for cross thread communication
     let (stokes_sender, stokes_reciever) = mpsc::channel();
-    let (timestamp_sender, timestamp_reciever) = mpsc::channel();
     let (pca_sender, pca_reciever) = mpsc::channel();
     let (filter_sender, filter_reciever) = mpsc::channel();
     // let (spectrogram_sender, spectrogram_reciever) = mpsc::channel();
 
     // Initiate threads
     let listener_handle = thread::spawn(move || 
-        fetch_data(stokes_sender, timestamp_sender, &should_stop_listener)
+        fetch_data(stokes_sender, &should_stop_listener)
     );
 
     let pca_handle = thread::spawn(move || 
@@ -67,13 +66,12 @@ fn main() {
     );
 
     let filter_handle = thread::spawn(move || {
-        highpass(
+        highpass::<FILTER_ORDER>(
             &pca_reciever,
             filter_sender,
             &should_stop_filter,
             CUTOFF_FREQ,
             SAMPLING_FREQ,
-            FILTER_ORDER,
         )
     });
 
@@ -92,7 +90,6 @@ fn main() {
     let audio_sender_handle = thread::spawn(move || 
         send_audio(
             &filter_reciever, 
-            &timestamp_reciever, 
             &should_stop_sender,
         )
     );
@@ -120,8 +117,7 @@ fn main() {
 /// This function does not return unless an error occurs or `should_stop` is set to `true`.
 /// Data is instead sent through `ts` and `tt` channels.
 fn fetch_data(
-    ts: Sender<Array1<f64>>,
-    tt: Sender<u32>,
+    ts: Sender<(u32, Array1<f64>)>,
     should_stop: &AtomicBool,
 ) -> Result<(), String> {
     let listener = StokesUdpListener::bind((Ipv4Addr::LOCALHOST, STOKES_PORT))
@@ -142,14 +138,13 @@ fn fetch_data(
         let s = array![s1, s2, s3] / s0;
 
         // Send values downstream
-        ts.send(s).map_err(|err| format!("Sender error: {}", err))?;
-        tt.send(t).map_err(|err| format!("Sender error: {}", err))?;
+        ts.send((t, s)).map_err(|err| format!("Sender error: {}", err))?;
     }
 
     Ok(())
 }
 
-fn send_audio(rx: &Receiver<f64>, rt: &Receiver<u32>, should_stop: &AtomicBool) -> Result<(), String> {
+fn send_audio(rx: &Receiver<(u32, f64)>, should_stop: &AtomicBool) -> Result<(), String> {
     todo!();
 
     Ok(())

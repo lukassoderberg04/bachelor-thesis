@@ -1,11 +1,14 @@
 use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 
+
+/// Struct for sending audio data downstream the application.
 pub struct AudioUdpSender {
     socket: UdpSocket,
     target: SocketAddr,
 }
 
 impl AudioUdpSender {
+    /// Binds to a socket address and designates a target.
     pub fn bind<T: ToSocketAddrs, V: ToSocketAddrs>(addr: T, target: V) -> Result<Self, String> {
         let socket = UdpSocket::bind(addr).map_err(|err| err.to_string())?;
         let target = target

@@ -4,19 +4,18 @@ use ndarray::{Array1, ArrayView1};
 use scirs2::{linalg::compat::Norm, signal::{FilterType, butter}};
 use scirs2_fft::rfft;
 
-use crate::OJA_LEARNING_RATE;
+use crate::{OJA_LEARNING_RATE};
 
-pub fn pca(rx: &Receiver<Array1<f64>>, ty: Sender<f64>, should_stop: &AtomicBool) -> Result<(), String> {
+pub fn pca(rx: &Receiver<(u32, Array1<f64>)>, ty: Sender<(u32, f64)>, should_stop: &AtomicBool) -> Result<(), String> {
     let mut weights = Array1::from_vec(vec![1f64/f64::sqrt(3f64); 3]);
 
     while !should_stop.load(Ordering::Relaxed) {
-        let s = rx.recv().map_err(|err| format!("{}", err))?;
+        let (t, s) = rx.recv().map_err(|err| format!("{}", err))?;
 
         let y = ojas_rule(&mut weights, &s.view(), OJA_LEARNING_RATE);
 
-        ty.send(y).map_err(|err| format!("{}", err))?;
+        ty.send((t, y)).map_err(|err| format!("{}", err))?;
     }
-
 
     Ok(())
 }
@@ -53,61 +52,84 @@ fn ojas_rule(weights: &mut Array1<f64>, x: &ArrayView1<f64>, learning_rate: f64)
 /// - `ty` A sender for the output channel.
 /// - `should_stop` An `AtomicBool` signifying weather the function should cease operations.
 /// - `cutoff_freq` The cuttoff frequency for the filter.
-/// - `sampling_freq` The sampling frequency.
-/// - `filter_order` The order of the filter applied.
+/// - `time_units` Units of the timestamps (eg `10e-3` for milliseconds)
+/// - `BUFFER_SIZE` The size of buffers used to store values. Equal to `FILTER_ORDER + 1`.
 ///
 /// ## Returns
 ///
 /// The function never returns unless an error occurs or `should_stop` is set to `true`.
 /// The values are instead returned through the output channel.
-pub fn highpass(
-    rx: &Receiver<f64>,
-    ty: Sender<f64>,
+pub fn highpass<const BUFFER_SIZE: usize>(
+    rx: &Receiver<(u32, f64)>,
+    ty: Sender<(u32, f64)>,
     should_stop: &AtomicBool,
     cutoff_freq: f64,
-    sampling_freq: f64,
-    filter_order: usize,
+    time_units: f64
 ) -> Result<(), String> {
-    // TODO: Might break if samples are missed. Investigate further.
-
-    // Normalize the cutoff frequency by the Nyquist frequency
-    let nyquist_freq = sampling_freq / 2f64;
-    let cutoff = cutoff_freq / nyquist_freq;
-
-    let (b, a) = butter(filter_order, cutoff, FilterType::Highpass).map_err(|err| format!("{}", err))?;
+    let mut b = [0.0; BUFFER_SIZE];
+    let mut a = [0.0; BUFFER_SIZE];
 
     // A and B will be length N + 1, where N is the filter order.
     // Therefore we need to store N y values from history
     // and to make life easier we push the current value of x into
     // history for our calculations.
-    let mut y_prev: VecDeque<f64> = VecDeque::with_capacity(filter_order);
-    let mut x_prev: VecDeque<f64> = VecDeque::with_capacity(filter_order + 1);
+    let mut y_prev = [0.0; BUFFER_SIZE];
+    let mut x_prev = [0.0; BUFFER_SIZE];
+
+    let mut current_sampling_freq: Option<f64> = None;
+    let mut t_prev = None;
 
     while !should_stop.load(Ordering::Relaxed) {
-        let x = rx.recv().map_err(|err| format!("{}", err))?;
+        let (t, x) = rx.recv().map_err(|err| format!("{}", err))?;
 
-        // Remove old values before pushing new to avoid reallocation
-        if x_prev.len() >= filter_order + 1 {
-            x_prev.pop_back().unwrap();
+        let dt = match t_prev {
+            None => {
+                t_prev = Some(t);
+                continue;
+            },
+            Some(prev) if t <= prev => {
+                t_prev = Some(t);
+                continue;
+            }
+            Some(prev) => (t - prev) as f64
+        };
+        t_prev = Some(t);
+
+        // Correct for units for t
+        let instant_freq = 1.0 / (dt as f64 * time_units);
+
+        // Initialize sampling frequency and filter coefficients if it has not been done yet
+        // or reinitialize if sampling frequency has drifted by more than 2%
+        if current_sampling_freq.map_or(true, |f| (instant_freq - f).abs() / f > 0.02) {
+            current_sampling_freq = Some(instant_freq);
+
+            let nyquist_freq = current_sampling_freq.unwrap() / 2f64;
+            let cutoff = cutoff_freq / nyquist_freq;
+
+            let (new_b, new_a) = butter(BUFFER_SIZE, cutoff, FilterType::Highpass).map_err(|err| format!("{}", err))?;
+            b.copy_from_slice(&new_b[..]);
+            a.copy_from_slice(&new_a[..]);
         }
-        x_prev.push_front(x);
 
-        let y = b
-            .iter()
-            .zip(x_prev.iter())
-            .fold(0f64, |acc, (b, x)| acc + *b * *x)
-            + a.iter()
-                .skip(1) // Skip the coefficient for y
-                .zip(y_prev.iter())
-                .fold(0f64, |acc, (a, y)| acc + *a + *y);
-
-        // Remove old values before pushing new to avoid reallocation
-        if y_prev.len() >= filter_order {
-            y_prev.pop_back().unwrap();
+        // Shift X values into history
+        for i in (1..BUFFER_SIZE).rev() {
+            x_prev[i] = x_prev[i - 1];
         }
-        y_prev.push_front(y);
+        x_prev[0] = x;
 
-        ty.send(y).map_err(|err| format!("{}", err))?
+        // Calculate y
+        let b_part = b.iter().zip(x_prev.iter()).fold(0f64, |acc, (b, x)| acc + b * x);
+        let a_part = a.iter().skip(1).zip(y_prev.iter()).fold(0f64, |acc, (a, y)| acc + a * y);
+
+        let y = b_part - a_part;
+
+        // Shift Y values into history
+        for i in (1..BUFFER_SIZE).rev() { // Changed from BUFFER_SIZE - 1
+            y_prev[i] = y_prev[i - 1];
+        }
+        y_prev[0] = y;
+
+        ty.send((t, y)).map_err(|err| format!("{}", err))?
     }
 
     Ok(())

@@ -3,6 +3,7 @@ use std::{
     net::{ToSocketAddrs, UdpSocket},
 };
 
+/// Struct for listening for data sent upstream from the application.
 pub struct StokesUdpListener {
     socket: UdpSocket,
 }
