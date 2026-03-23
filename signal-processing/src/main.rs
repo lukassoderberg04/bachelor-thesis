@@ -148,6 +148,16 @@ fn fetch_data(tx: Sender<(u32, Array1<f64>)>, should_stop: &AtomicBool) -> Resul
     Ok(())
 }
 
+/// Sends the audio downstream through the application.
+/// 
+/// ## Parameters
+/// 
+/// - `rx` Reciever for the data to send in the form `(timestamp, amplitudes)`.
+/// - `should_stop` Atoomic bool flag to broadcast when to cease operations.
+/// 
+/// ## Returns
+/// 
+/// This function doesn't return unless an error occurs or `should_stop` is set to true.
 fn send_audio(rx: &Receiver<(u32, f64)>, should_stop: &AtomicBool) -> Result<(), String> {
     let sender = AudioUdpSender::bind((Ipv4Addr::LOCALHOST, 0), (Ipv4Addr::LOCALHOST, AUDIO_PORT))?;
 

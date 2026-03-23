@@ -3,13 +3,16 @@ name = "signal-processing"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "spectrogram"
+path = "src/bin/spectrogram.rs"
+
 [dependencies]
 clap = { version = "4.5.58", features = ["derive"] }
 ctrlc = "3.5.2"
 ndarray = "0.17.2"
 ndarray-stats = "0.7.0"
 num-complex = "0.4.6"
-ruviz = "0.1.4"
 scirs2 = "0.2.0"
 scirs2-fft = "0.2.0"
 scirs2-io = "0.2.0"
