@@ -1,13 +1,39 @@
-use std::{collections::VecDeque, error::Error, sync::{atomic::{AtomicBool, Ordering}, mpsc::{Receiver, Sender}}};
+use std::{
+    collections::VecDeque,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{Receiver, Sender},
+    },
+};
 
 use ndarray::{Array1, ArrayView1};
-use scirs2::{linalg::compat::Norm, signal::{FilterType, butter}};
+use scirs2::{
+    linalg::compat::Norm,
+    signal::{FilterType, butter},
+};
 use scirs2_fft::rfft;
 
-use crate::{OJA_LEARNING_RATE};
+use crate::OJA_LEARNING_RATE;
 
-pub fn pca(rx: &Receiver<(u32, Array1<f64>)>, ty: Sender<(u32, f64)>, should_stop: &AtomicBool) -> Result<(), String> {
-    let mut weights = Array1::from_vec(vec![1f64/f64::sqrt(3f64); 3]);
+/// Performs adaptive PCA on the stokes vectors using Oja's rule.
+/// 
+/// ## Parameters
+/// 
+/// - `rx` Reciever for the input data in the form of `(timestamp, [s1, s2, s3])`, 
+/// where s_i is the i-th stokes parameter.
+/// - `ty` Sender for the output data. Data  vill be sent as `(timestamp, amplitude)`
+/// - `should_stop` Atomic bool flag for broadcasting when to halt operations.
+/// 
+/// ## Returns
+/// 
+/// This function only returns in the case of an error or if `should_stop` is set to `true`.
+/// Output data is instead sent through `ty`.
+pub fn pca(
+    rx: &Receiver<(u32, Array1<f64>)>,
+    ty: Sender<(u32, f64)>,
+    should_stop: &AtomicBool,
+) -> Result<(), String> {
+    let mut weights = Array1::from_vec(vec![1f64 / f64::sqrt(3f64); 3]);
 
     while !should_stop.load(Ordering::Relaxed) {
         let (t, s) = rx.recv().map_err(|err| format!("{}", err))?;
@@ -32,7 +58,7 @@ pub fn pca(rx: &Receiver<(u32, Array1<f64>)>, ty: Sender<(u32, f64)>, should_sto
 ///
 /// - `learning_rate` The rate of how fast the weights should be adjusted.
 ///
-/// ## Rerurns
+/// ## Returns
 ///
 /// The magnitude along the principal component axis.
 fn ojas_rule(weights: &mut Array1<f64>, x: &ArrayView1<f64>, learning_rate: f64) -> f64 {
@@ -64,7 +90,7 @@ pub fn highpass<const BUFFER_SIZE: usize>(
     ty: Sender<(u32, f64)>,
     should_stop: &AtomicBool,
     cutoff_freq: f64,
-    time_units: f64
+    time_units: f64,
 ) -> Result<(), String> {
     let mut b = [0.0; BUFFER_SIZE];
     let mut a = [0.0; BUFFER_SIZE];
@@ -86,12 +112,12 @@ pub fn highpass<const BUFFER_SIZE: usize>(
             None => {
                 t_prev = Some(t);
                 continue;
-            },
+            }
             Some(prev) if t <= prev => {
                 t_prev = Some(t);
                 continue;
             }
-            Some(prev) => (t - prev) as f64
+            Some(prev) => (t - prev) as f64,
         };
         t_prev = Some(t);
 
@@ -106,7 +132,8 @@ pub fn highpass<const BUFFER_SIZE: usize>(
             let nyquist_freq = current_sampling_freq.unwrap() / 2f64;
             let cutoff = cutoff_freq / nyquist_freq;
 
-            let (new_b, new_a) = butter(BUFFER_SIZE, cutoff, FilterType::Highpass).map_err(|err| format!("{}", err))?;
+            let (new_b, new_a) = butter(BUFFER_SIZE - 1, cutoff, FilterType::Highpass)
+                .map_err(|err| format!("{}", err))?;
             b.copy_from_slice(&new_b[..]);
             a.copy_from_slice(&new_a[..]);
         }
@@ -118,13 +145,21 @@ pub fn highpass<const BUFFER_SIZE: usize>(
         x_prev[0] = x;
 
         // Calculate y
-        let b_part = b.iter().zip(x_prev.iter()).fold(0f64, |acc, (b, x)| acc + b * x);
-        let a_part = a.iter().skip(1).zip(y_prev.iter()).fold(0f64, |acc, (a, y)| acc + a * y);
+        let b_part = b
+            .iter()
+            .zip(x_prev.iter())
+            .fold(0f64, |acc, (b, x)| acc + b * x);
+        let a_part = a
+            .iter()
+            .skip(1)
+            .zip(y_prev.iter())
+            .fold(0f64, |acc, (a, y)| acc + a * y);
 
         let y = b_part - a_part;
 
         // Shift Y values into history
-        for i in (1..BUFFER_SIZE).rev() { // Changed from BUFFER_SIZE - 1
+        for i in (1..BUFFER_SIZE).rev() {
+            // Changed from BUFFER_SIZE - 1
             y_prev[i] = y_prev[i - 1];
         }
         y_prev[0] = y;
@@ -158,7 +193,6 @@ pub fn stft(
     window_size: usize,
     hop_size: usize,
 ) -> Result<(), String> {
-
     let mut x = VecDeque::new();
     let mut t = VecDeque::new();
     let mut iter = 0usize..;
@@ -182,6 +216,7 @@ pub fn stft(
 
         // Remove now irrelevant values. The previous guard clause asserts that the deque is not empty.
         x.pop_front().unwrap();
+        t.pop_front().unwrap();
 
         // Only do the FFT when the hop size has been reached.
         if i % hop_size != 0 {
@@ -192,10 +227,11 @@ pub fn stft(
 
         // Rearrange the contents of the deque into a single slice and pass it to the fourier iteration.
         let intensity_spectrum = stft_iteration(x.make_contiguous())?;
-        
+
         let t_mean = (t[0] + t.iter().last().unwrap()) / 2;
 
-        ty.send((t_mean, intensity_spectrum)).map_err(|err| format!("{}", err))?;
+        ty.send((t_mean, intensity_spectrum))
+            .map_err(|err| format!("{}", err))?;
     }
 
     Ok(())
@@ -225,9 +261,10 @@ pub fn stft_iteration(x: &[f64]) -> Result<Vec<f64>, String> {
     let spectrum = rfft(
         &x_weighted
             .as_slice()
-            .ok_or("Could not create a slice from `x_weigthed`.")?,
+            .ok_or("Could not create a slice from `x_weighted`.")?,
         Some(n),
-    ).map_err(|err| format!("{}", err))?;
+    )
+    .map_err(|err| format!("{}", err))?;
 
     // Return intensity as magnitude squared
     Ok(spectrum

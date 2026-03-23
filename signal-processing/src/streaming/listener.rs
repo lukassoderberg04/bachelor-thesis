@@ -30,7 +30,8 @@ impl StokesUdpListener {
     ///
     /// Returns a `Result` resolving to a tuple containing, in order:
     /// timestamps, S0, S1, S2 and S3. The function returns an error if
-    /// either there is no message currently pending, or if
+    /// either there is no message currently pending, or if the recieved
+    /// message is not in the expected format.
     pub fn recv(&self) -> Result<(u32, f64, f64, f64, f64), String> {
         let mut buf = [0u8; 24];
         let (amt, _src) = self
