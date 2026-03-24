@@ -6,17 +6,44 @@ import wave
 import numpy
 
 """
-    File module contains classes and functions that are important
-    for retrieving and communicating with different file formats
-    that are used by the bachelor thesis project.
+File module contains classes and functions that are important
+for retrieving and communicating with different file formats
+that are used by the bachelor thesis project.
 """
 
-"""
+class PM1000Measurment:
+    """
+    A class modeling the measurment retrieved from a file.
+    """
+    def __init__(self, timestamp: int, s0: int, s1: int, s2: int, s3: int):
+        self._timestamp = timestamp
+        self._s0        = s0
+        self._s1        = s1
+        self._s2        = s2
+        self._s3        = s3
+
+    def GetTimestamp(self) -> int:
+        return self._timestamp
+    
+    def GetS0(self) -> int:
+        return self._s0
+    
+    def GetS1(self) -> int:
+        return self._s1
+
+    def GetS2(self) -> int:
+        return self._s2
+
+    def GetS3(self) -> int:
+        return self._s3
+
+class PM1000ResultFileReader:
+    """
     A class that can open a result file and retrieve the stokes vectors
     and also the attributes of the recording (from a PM1000 recording).
-"""
-class PM1000ResultFileReader:
-    def __init__(self, filePath: Path, chunkSize: int = 1) -> "PM1000ResultFileReader":
+    """
+
+    def __init__(self, filePath: Path, chunkSize: int = 1) -> None:
         self._filePath                            = filePath
         self._chunkSize                           = chunkSize
         self._fileHandle: Optional[TextIOWrapper] = None
@@ -26,22 +53,26 @@ class PM1000ResultFileReader:
         if not self._filePath.exists():
             raise FileNotFoundError(f"The file in question wasn't found: {self._filePath}")
         
-    """
-        Returns the attributes after opening the file.
-    """
+    
     def GetAttributes(self) -> dict[str, str]:
+        """
+        Returns the attributes after opening the file.
+        """
         return self._attributes
     
-    """
-        Returns the index of the next sample index.
-    """
+    
     def GetNextSampleIndex(self) -> int:
+        """
+        Returns the index of the next sample index.
+        """
         return self._nextSampleIndex
 
-    """
+    
+    def _parseHeader(self) -> None:
+        """
         Parses the headers and fills in the attribute list.
-    """
-    def _parseHeader(self):
+        """
+
         r"""
             ^     - Start of line.
             \s*   - Match whitespaces (\s = whitespace, * = 0 or more).
@@ -53,6 +84,10 @@ class PM1000ResultFileReader:
             $     - Marks end of line.
         """
         headerPattern: regex.Pattern = regex.compile(r"^#\s*(\w+)\s*=\s*['\"]?(.*?)['\"]?\s*;\s*$")
+
+        # Assert that a file handle exists before trying to read data
+        if self._fileHandle is None:
+            return
 
         # Read the first line and just throw it away.
         _ = self._fileHandle.readline()
@@ -76,22 +111,23 @@ class PM1000ResultFileReader:
                 self._fileHandle.seek(lastPos)
                 break
     
-    """
+    def Open(self):
+        """
         Opens the designated file and parses the headers.
         Now ready to read stokes parameter chunk by chunk.
-    """
-    def Open(self):
+        """
+
         # Open a read handle to the file.
         self._fileHandle = self._filePath.open("r", encoding="utf-8")
         self._nextSampleIndex = 0
 
         self._parseHeader()
 
-    """
+    def GetNextSample(self) -> Optional[PM1000Measurment]:
+        """
         Gets the next list of samples from the file.
         Returns None if there's no more samples to read.
-    """
-    def GetNextSample(self) -> Optional["PM1000Measurment"]:
+        """
         if not self._fileHandle:
             raise RuntimeError("File must be open before reading!")
         
@@ -109,10 +145,10 @@ class PM1000ResultFileReader:
 
         return PM1000Measurment(values[0], values[1], values[2], values[3], values[4])
     
-    """
+    def GetAllSamples(self) -> list[PM1000Measurment]:
+        """
         Returns all samples from a file as a list.
-    """
-    def GetAllSamples(self) -> list["PM1000Measurment"]:
+        """
         if not self._fileHandle:
             raise RuntimeError("File must be open before reading!")
         
@@ -126,54 +162,28 @@ class PM1000ResultFileReader:
             else:
                 return samples
     
-    """
-        Closes the handle to the file.
-    """
     def Close(self):
+        """
+        Closes the handle to the file.
+        """
         if self._fileHandle:
             self._fileHandle.close()
             self._fileHandle = None
     
-    """
+    def __enter__(self): 
+        """
         If using 'with' on the class for reading,
         makes sure that on enter it opens the file handle.
-    """
-    def __enter__(self): 
+        """
         self.Open()
         return self
     
-    """
+    def __exit__(self, *args): 
+        """
         If using 'with' on the class for reading,
         makes sure that on leave it closes the file handle.
-    """
-    def __exit__(self, *args): 
+        """
         self.Close()
-
-"""
-    A class modeling the measurment retrieved from a file.
-"""
-class PM1000Measurment:
-    def __init__(self, timestamp: int, s0: int, s1: int, s2: int, s3: int):
-        self._timestamp = timestamp
-        self._s0        = s0
-        self._s1        = s1
-        self._s2        = s2
-        self._s3        = s3
-
-    def GetTimestamp(self) -> int:
-        return self._timestamp
-    
-    def GetS0(self) -> int:
-        return self._s0
-    
-    def GetS1(self) -> int:
-        return self._s1
-
-    def GetS2(self) -> int:
-        return self._s2
-
-    def GetS3(self) -> int:
-        return self._s3
     
 """
     The wave file reader reads the audio data from
@@ -200,7 +210,7 @@ class WaveFileReader:
         Reads all values from only the first channel and returns
         the array of values.
     """
-    def ReadAllSamplesFromFirstChannel(self) -> numpy.array:
+    def ReadAllSamplesFromFirstChannel(self) -> numpy.ndarray:
         if not self._waveHandle:
             raise RuntimeError("File must be open before reading!")
 
