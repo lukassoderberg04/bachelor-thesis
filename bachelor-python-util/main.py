@@ -7,21 +7,49 @@
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
-from BachelorPythonUtilLib.File import WaveFileReader, WaveFileWriter
+from BachelorPythonUtilLib.File import WaveFileReader, WaveFileWriter, PM1000ResultFileReader, PM1000Measurment
+from BachelorPythonUtilLib.Stokes import StokesVector
 
 """
 ==================================================================================
 """
 
-activePlot = "filter_and_save_speech"
+activePlot = "read_stokes_file_and_plot_FFT"
 
 """
 ==================================================================================
 """
+
+def readStokesFileAndPlotFFT():
+    filePath = Path(__file__).parent / "files" / "measurments" / "spool-long-speaker-on-side-air-200-to-2200-2026-03-23.txt"
+    polarimeterSampleRate = 48800
+
+    samples: list[StokesVector] = []
+
+    with PM1000ResultFileReader(filePath) as reader:
+        measurments = reader.GetAllSamples()
+
+        for measurment in measurments:
+            samples.append(StokesVector(measurment.GetS0(), measurment.GetS1(), measurment.GetS2(), measurment.GetS3()))
+
+    magnitudes: list[float] = [sample.GetAmplitudeOfCombinedStokes() for sample in samples]
+
+    # Use fourier transform to get all samples.
+    fftValues = np.fft.fft(magnitudes)
+    frequencies = np.fft.fftfreq(len(magnitudes), 1 / polarimeterSampleRate)
+
+    magnitudes = np.abs(fftValues)
+
+    plt.title("Frekvensspektrum från en grupp som pratar")
+    plt.xlabel("Frekvens (Hz)")
+    plt.ylabel("Amplitud")
+    
+    plt.plot(frequencies, magnitudes)
+    plt.show()
 
 def filterAndSaveSpeech():
-    file_path = Path(__file__).parent / "files" / "group_talking.wav"
-    with WaveFileReader(file_path) as reader:
+    filePath = Path(__file__).parent / "files" / "group_talking.wav"
+    with WaveFileReader(filePath) as reader:
         samples = reader.ReadAllSamplesFromFirstChannel()
         sampleRate = reader.GetSamplingFrequency()
 
@@ -80,7 +108,8 @@ def plotFrequencyFromPeopleTalking():
 """
 plots = {
     "frequency_from_people_talking": lambda: plotFrequencyFromPeopleTalking(),
-    "filter_and_save_speech": lambda: filterAndSaveSpeech()
+    "filter_and_save_speech": lambda: filterAndSaveSpeech(),
+    "read_stokes_file_and_plot_FFT": lambda: readStokesFileAndPlotFFT()
 }
 
 # If the plot exist in the plots... run the lambda function for that specific plot.
