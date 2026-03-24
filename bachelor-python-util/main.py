@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from BachelorPythonUtilLib.File import WaveFileReader, WaveFileWriter, PM1000ResultFileReader, PM1000Measurment
+from BachelorPythonUtilLib.Stokes import StokesVector
 
 """
 ==================================================================================
@@ -23,19 +24,19 @@ def readStokesFileAndPlotFFT():
     filePath = Path(__file__).parent / "files" / "measurments" / "spool-long-speaker-on-side-air-200-to-2200-2026-03-23.txt"
     polarimeterSampleRate = 48800
 
-    samples: list[PM1000Measurment] = []
+    samples: list[StokesVector] = []
 
     with PM1000ResultFileReader(filePath) as reader:
-        samples = reader.GetAllSamples()
+        measurments = reader.GetAllSamples()
 
-    s1Samples: list[int] = []
+        for measurment in measurments:
+            samples.append(StokesVector(measurment.GetS0(), measurment.GetS1(), measurment.GetS2(), measurment.GetS3()))
 
-    for sample in samples:
-        s1Samples.append(sample.GetS1())
+    magnitudes: list[float] = [sample.GetAmplitudeOfCombinedStokes() for sample in samples]
 
     # Use fourier transform to get all samples.
-    fftValues = np.fft.fft(s1Samples)
-    frequencies = np.fft.fftfreq(len(s1Samples), 1 / polarimeterSampleRate)
+    fftValues = np.fft.fft(magnitudes)
+    frequencies = np.fft.fftfreq(len(magnitudes), 1 / polarimeterSampleRate)
 
     magnitudes = np.abs(fftValues)
 
