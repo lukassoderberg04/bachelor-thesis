@@ -21,6 +21,7 @@ activePlot = "read_stokes_file_and_plot_FFT"
 
 def readStokesFileAndPlotFFT():
     filePath = Path(__file__).parent / "files" / "measurments" / "spool-long-speaker-on-side-air-200-to-2200-2026-03-23.txt"
+    polarimeterSampleRate = 48800
 
     samples: list[PM1000Measurment] = []
 
@@ -34,7 +35,7 @@ def readStokesFileAndPlotFFT():
 
     # Use fourier transform to get all samples.
     fftValues = np.fft.fft(s1Samples)
-    frequencies = np.fft.fftfreq(len(s1Samples), 1 / 48800)
+    frequencies = np.fft.fftfreq(len(s1Samples), 1 / polarimeterSampleRate)
 
     magnitudes = np.abs(fftValues)
 
