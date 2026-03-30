@@ -21,7 +21,7 @@ activePlot = "read_stokes_file_and_plot_FFT"
 """
 
 def readStokesFileAndPlotFFT():
-    filePath = Path(__file__).parent / "files" / "measurments" / "spool-long-speaker-on-side-air-200-to-2200-2026-03-23.txt"
+    filePath = Path(__file__).parent / "files" / "measurments" / "frequenciesSteppingFrom200To5000" / "stipa_small_spool_speaker_on_top.txt"
     polarimeterSampleRate = 48800
 
     samples: list[StokesVector] = []
@@ -39,6 +39,9 @@ def readStokesFileAndPlotFFT():
     frequencies = np.fft.fftfreq(len(magnitudes), 1 / polarimeterSampleRate)
 
     magnitudes = np.abs(fftValues)
+
+    plt.ylim((0, 0.2e6))
+    plt.xlim((10, 5000))
 
     plt.title("Frekvensspektrum från en grupp som pratar")
     plt.xlabel("Frekvens (Hz)")
