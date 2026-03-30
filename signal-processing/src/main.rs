@@ -1,142 +1,161 @@
-mod udp_sender;
-use udp_sender::AudioUdpSender;
+mod signal_processing;
+mod streaming;
 
-use std::error::Error;
+use std::{
+    net::Ipv4Addr, process::exit, sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, Sender},
+    }, thread::{self, JoinHandle}
+};
 
 use ndarray::prelude::*;
-use num_complex::{ComplexFloat};
-use ruviz::{axes::AxisScale, core::Plot};
-use scirs2::{
-    linalg::{compat::Norm, svd},
-    signal::{
-        FilterType, butter,
-        filter::{self, lfilter, parallel_filtfilt},
-        filtfilt,
-        parametric::{SpectrumOptions, detect_spectral_peaks},
-    },
+
+use crate::{
+    signal_processing::{highpass, pca},
+    streaming::{AudioUdpSender, StokesUdpListener},
 };
-use scirs2_fft::{fft::complex_magnitude, rfft, rfftfreq};
-use scirs2_io::csv::{CsvReaderConfig, read_csv};
+
+// Constants
+const FILTER_ORDER: usize = 4;
+const TIME_UNITS: f64 = 1e-6; // Time is passed as microseconds
+
+// TODO: Possibly make this more dynamic so that the program works even if that port is taken.
+const STOKES_PORT: u16 = 5000;
+const AUDIO_PORT: u16 = 5001;
+
+// TODO: The following constants should probably be adjustable using arguments/config.
+const OJA_LEARNING_RATE: f64 = 0.01;
+const CUTOFF_FREQ: f64 = 20.0;
 
 fn main() {
-    // TODO! Read data from stream
+    // TODO: Read command line argument to allow for configuration
 
-    // TODO! Implement proper error handling once functionality is verified
+    // Set up a flag to signify when to halt operations
+    let should_stop = Arc::new(AtomicBool::new(false));
 
-    let config = CsvReaderConfig {
-        comment_char: Some('#'),
-        has_header: false,
-        skip_rows: 11,
-        trim: true,
-        ..Default::default()
-    };
+    let should_stop_listener = Arc::clone(&should_stop);
+    let should_stop_pca = Arc::clone(&should_stop);
+    let should_stop_filter = Arc::clone(&should_stop);
+    let should_stop_sender = Arc::clone(&should_stop);
+    let should_stop_controller = Arc::clone(&should_stop);
+    
+    // Set handler for CTRL+C
+    ctrlc::set_handler(move || {
+        println!("Shutdown signal recieved. Exiting.");
 
-    let (_, data) = read_csv(
-        "./example_data/polarimeter_recording_440Hz_0.txt",
-        Some(config),
-    )
-    .expect("Failed to read CSV file");
+        should_stop_controller.store(true, Ordering::SeqCst);
+    }).expect("Error setting Ctrl-C handler");
 
-    // Timestamps, S0, S1, S2, S3
-    let data = data.map(|f| f.parse::<f64>().unwrap());
+    // Initiate channels for cross thread communication
+    let (stokes_sender, stokes_reciever) = mpsc::channel();
+    let (pca_sender, pca_reciever) = mpsc::channel();
+    let (filter_sender, filter_reciever) = mpsc::channel();
+    // let (spectrogram_sender, spectrogram_reciever) = mpsc::channel();
 
-    // Convert from nanosecond timestamps to second timestamps
-    let timestamps = data.slice(s![.., 0]).into_owned() * 1e-9;
-
-    // Extract the stokes parameters S1 through S3 and normalize them by S0
-    let s = data.slice(s![.., 2..=4]).into_owned() / data.column(1).insert_axis(Axis(1));
-
-    let dt = timestamps.diff(1, Axis(0));
-    let sampling_rate = 1.0 / dt.mean().unwrap();
-
-    // Perform PCA using SVD. This only works for static datasets and will not work for the future stream
-    let amplitudes = static_pca(&s.view()).unwrap();
-
-    // Filter frequencies
-    let cutoff_freq = 20.0; // Hz
-    let nyquist_freq = sampling_rate / 2.0;
-    let normalized_cutoff = cutoff_freq / nyquist_freq;
-
-    let (b, a) = butter(4, normalized_cutoff, FilterType::Highpass).unwrap();
-    let hp_amplitudes = Array1::from_vec(parallel_filtfilt(&b, &a, &amplitudes.as_slice().unwrap(), None).unwrap());
-
-    let n = hp_amplitudes.len();
-    let window = Array1::from_shape_fn(n, |i| {
-        0.5 * (1.0 - (2.0 * std::f64::consts::PI * i as f64 / (n as f64 - 1.0)).cos())
+    // Initiate threads
+    let listener_handle = thread::spawn(move || fetch_data(stokes_sender, &should_stop_listener));
+    let pca_handle = thread::spawn(move || pca(&stokes_reciever, pca_sender, &should_stop_pca));
+    let filter_handle = thread::spawn(move || {
+        highpass::<{ FILTER_ORDER + 1 }>(
+            &pca_reciever,
+            filter_sender,
+            &should_stop_filter,
+            CUTOFF_FREQ,
+            TIME_UNITS,
+        )
     });
+    let audio_sender_handle =
+        thread::spawn(move || send_audio(&filter_reciever, &should_stop_sender));
 
-    let windowed_signal = &hp_amplitudes * &window;
+    // Collect all thread handles into a vector for monitoring.
+    let mut handles = Vec::new();
 
-    let spectrum = rfft(windowed_signal.as_slice().unwrap(), Some(n))
-        .unwrap()
-        .iter()
-        .map(|f| f.abs() / (n as f64 / 2.0) * 2.0)
-        .collect::<Array1<f64>>();
+    handles.push(listener_handle);
+    handles.push(pca_handle);
+    handles.push(filter_handle);
+    handles.push(audio_sender_handle);
 
-    let freqs = Array1::from_vec(rfftfreq(n, 1.0 / sampling_rate).unwrap());
+    let mut exit_flag = 0;
 
-    let peak_options = SpectrumOptions {
-        peak_threshold: 2e-5,
-        ..Default::default()
-    };
-
-    let peaks = detect_spectral_peaks(&spectrum, &freqs, &peak_options)
-        .unwrap()
+    let mut handles: Vec<Option<JoinHandle<Result<(), String>>>> = handles
         .into_iter()
-        .filter(|peak| peak.prominence >= 2.0e-5);
+        .map(Some)
+        .collect();
 
-    let mut fig = Plot::new()
-        .line(&freqs.as_slice().unwrap(), &spectrum.as_slice().unwrap())
-        .xlabel("Frekvens")
-        .ylabel("Magnitud");
+    // Monitor threads to make sure none finish early
+    while !should_stop.load(Ordering::Relaxed) {
+        for slot in &mut handles {
+            // Take the handle out of the Option, leaving None in its place.
+            // If already None (already joined), skip.
+            let Some(handle) = slot else { continue };
 
-    for peak in peaks {
-        println!(
-            "Peak with frequency {:.1}, magnitude {:.2e} and prominence {:.2e}",
-            peak.frequency, peak.power, peak.prominence
-        );
+            if !handle.is_finished() {
+                continue;
+            }
 
-        fig = fig.vline(peak.frequency)
+            // Move the handle out of the slot so we can call join()
+            let result = slot.take().unwrap().join().expect("Failed to join thread.");
+
+            if let Err(message) = result {
+                println!("An error has occured: {}", message);
+                exit_flag = 1;
+            }
+
+            should_stop.store(true, Ordering::SeqCst);
+        }
+
+        std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
-    fig.save_with_size("./junk/fft.png", 1280, 960)
-        .unwrap();
-
-    
-
-    // Convert the extracted amplitudes (f64) to f32 audio samples.
-    let audio_samples: Vec<f32> = hp_amplitudes.iter().map(|&x| x as f32).collect();
-
-    // Send the block to the visualizer on port 5001.
-    // In the streaming integration, call send_block() once per processing window
-    // instead of once for the whole recording — see Documents/integration-guide.md.
-    let mut sender = AudioUdpSender::new("127.0.0.1", sampling_rate as u32)
-        .expect("Failed to bind UDP socket");
-    sender
-        .send_block(&audio_samples)
-        .expect("Failed to send audio UDP packet");
+    exit(exit_flag)
 }
 
-fn static_pca(s: &ArrayView2<f64>) -> Result<Array1<f64>, Box<dyn Error>> {
-    let s_centered = s.to_owned() - s.mean_axis(Axis(0)).unwrap();
+/// Fetches data from the upstream UDP sender.
+///
+/// ## Parameters
+///
+/// - `tx` Sender for the output channel.
+/// - `should_stop` Flag to signify when to halt operations.
+///
+/// ## Returns
+///
+/// This function does not return unless an error occurs or `should_stop` is set to `true`.
+/// Data is instead sent through the `tx` channel.
+fn fetch_data(tx: Sender<(u32, Array1<f64>)>, should_stop: &AtomicBool) -> Result<(), String> {
+    let listener = StokesUdpListener::bind((Ipv4Addr::LOCALHOST, STOKES_PORT))
+        .expect("Unable to bind to endpoint.");
 
-    let (_u, _s, vt) = svd(&s_centered.view(), false, None)?;
+    while !should_stop.load(Ordering::Relaxed) {
+        // Read values from the stokes UDP stream.
+        let result = listener.recv();
 
-    let weights_pca = vt.slice(s![0, ..]).to_owned();
+        let (t, s0, s1, s2, s3) = match result {
+            Err(err) if &err[..] == "Didn't recieve data." => continue,
+            Err(err) if err.starts_with("Incorrect byte amount.") => panic!("{}", err),
+            Err(_) => unreachable!(),
+            Ok(data) => data,
+        };
 
-    let amplitudes = s_centered.dot(&weights_pca);
+        // Create a normalized stokes array
+        let s = array![s1, s2, s3] / s0;
 
-    Ok(amplitudes)
+        // Send values downstream
+        tx.send((t, s))
+            .map_err(|err| format!("Sender error: {}", err))?;
+    }
+
+    Ok(())
 }
 
-fn ojas_rule(
-    weights: &mut Array1<f64>,
-    normalised_stokes_vector: &ArrayView1<f64>,
-    learning_rate: f64,
-) -> f64 {
-    let y = weights.dot(normalised_stokes_vector);
+fn send_audio(rx: &Receiver<(u32, f64)>, should_stop: &AtomicBool) -> Result<(), String> {
+    let sender = AudioUdpSender::bind((Ipv4Addr::LOCALHOST, 0), (Ipv4Addr::LOCALHOST, AUDIO_PORT))?;
 
-    *weights = &*weights + learning_rate * y * (normalised_stokes_vector - &*weights * y);
+    while !should_stop.load(Ordering::Relaxed) {
+        let (timestamp, amplitude) = rx.recv().map_err(|f| f.to_string())?;
 
-    y
+        sender.send(amplitude, timestamp)?
+    }
+
+    Ok(())
 }
