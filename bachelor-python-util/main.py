@@ -14,11 +14,37 @@ from BachelorPythonUtilLib.Stokes import StokesVector
 ==================================================================================
 """
 
-activePlot = "read_stokes_file_and_plot_FFT"
+activePlot = "read_stokes_and_output_wave"
 
 """
 ==================================================================================
 """
+
+def readStokesAndOutputWave():
+    stokesFilePath = Path(__file__).parent / "files" / "measurments" / "withStipa" / "stipa_big_spool_speaker_on_top.txt"
+    polarimeterSamplingRate = 48800
+
+    samples: list[StokesVector] = []
+
+    with PM1000ResultFileReader(stokesFilePath) as reader:
+        measurments = reader.GetAllSamples()
+
+        for measurment in measurments:
+            samples.append(StokesVector(measurment.GetS0(), measurment.GetS1(), measurment.GetS2(), measurment.GetS3()))
+
+    magnitudes: np.array[float] = np.array([sample.GetAmplitudeOfCombinedStokes() for sample in samples], dtype=float)
+
+    # Remove DC component.
+    magnitudes = magnitudes - np.mean(magnitudes)
+
+    # Normalize the magnitudes and make sure the values doesn't exceed 0.9 due to distortions.
+    if np.max(np.abs(magnitudes)) > 0:
+        magnitudes = magnitudes / np.max(np.abs(magnitudes)) * 0.9
+
+    outputPath = Path(__file__).parent / "files" / "stokesToWave.wav"
+
+    with WaveFileWriter(outputPath, polarimeterSamplingRate, 1, 2) as writer:
+        writer.WriteSamples(magnitudes)
 
 def readStokesFileAndPlotFFT():
     filePath = Path(__file__).parent / "files" / "measurments" / "frequenciesSteppingFrom200To5000" / "stipa_small_spool_speaker_on_top.txt"
@@ -112,7 +138,8 @@ def plotFrequencyFromPeopleTalking():
 plots = {
     "frequency_from_people_talking": lambda: plotFrequencyFromPeopleTalking(),
     "filter_and_save_speech": lambda: filterAndSaveSpeech(),
-    "read_stokes_file_and_plot_FFT": lambda: readStokesFileAndPlotFFT()
+    "read_stokes_file_and_plot_FFT": lambda: readStokesFileAndPlotFFT(),
+    "read_stokes_and_output_wave": lambda: readStokesAndOutputWave()
 }
 
 # If the plot exist in the plots... run the lambda function for that specific plot.
