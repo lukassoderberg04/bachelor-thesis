@@ -1,2 +1,7 @@
 # Ignore python specific caching.
 __pycache__
+
+# Large generated test artifacts (keep local, do not track in git).
+files/Test_2.txt
+files/Test_3(Audio_Synched).txt
+files/Test_4(Sanyack).txt

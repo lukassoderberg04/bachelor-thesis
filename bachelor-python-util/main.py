@@ -21,8 +21,8 @@ activePlot = "read_stokes_and_output_wave"
 """
 
 def readStokesAndOutputWave():
-    stokesFilePath = Path(__file__).parent / "files" / "measurments" / "withStipa" / "stipa_big_spool_speaker_on_top.txt"
-    polarimeterSamplingRate = 48800
+    stokesFilePath = Path(__file__).parent / "files" / "Test_4(Sanyack).txt"
+    polarimeterSamplingRate = 781250
 
     samples: list[StokesVector] = []
 
@@ -31,8 +31,8 @@ def readStokesAndOutputWave():
 
         for measurment in measurments:
             samples.append(StokesVector(measurment.GetS0(), measurment.GetS1(), measurment.GetS2(), measurment.GetS3()))
-
-    magnitudes: np.array[float] = np.array([sample.GetAmplitudeOfCombinedStokes() for sample in samples], dtype=float)
+    print("Hi we passed sample read")
+    magnitudes: np.array[float] = np.array([sample.GetPower() for sample in samples], dtype=float)
 
     # Remove DC component.
     magnitudes = magnitudes - np.mean(magnitudes)
