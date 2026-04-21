@@ -14,11 +14,49 @@ from BachelorPythonUtilLib.Stokes import StokesVector
 ==================================================================================
 """
 
-activePlot = "read_stokes_and_output_wave"
+activePlot = "read_stokes_remove_ambient_output_wave"
 
 """
 ==================================================================================
 """
+
+def readStokesAndRemoveAmbientToWave():
+    polarimeterSamplingRate = 48800
+    stokesFilePath = Path(__file__).parent / "files" / "measurment.txt"
+    ambientFilePath = Path(__file__).parent / "files" / "ambient.txt"
+
+    samplesStokes: list[StokesVector] = []
+    samplesAmbient: list[StokesVector] = []
+
+    with PM1000ResultFileReader(stokesFilePath) as reader:
+        measurments = reader.GetAllSamples()
+
+        for measurment in measurments:
+            samplesStokes.append(StokesVector(measurment.GetS0(), measurment.GetS1(), measurment.GetS2(), measurment.GetS3()))
+
+    with PM1000ResultFileReader(ambientFilePath) as reader:
+        measurments = reader.GetAllSamples()
+
+        for measurment in measurments:
+            samplesAmbient.append(StokesVector(measurment.GetS0(), measurment.GetS1(), measurment.GetS2(), measurment.GetS3()))
+
+    magnitudesStokes: np.array[float] = np.array([sample.GetAmplitudeOfCombinedStokes() for sample in samplesStokes], dtype=float)
+    magnitudesAmbient: np.array[float] = np.array([sample.GetAmplitudeOfCombinedStokes() for sample in samplesAmbient], dtype=float)
+
+    # Remove DC component.
+    magnitudesStokes = magnitudesStokes - np.mean(magnitudesStokes)
+
+    # Remove using ambient.
+    magnitudesStokes = magnitudesStokes - magnitudesAmbient
+
+    # Normalize the magnitudes and make sure the values doesn't exceed 0.9 due to distortions.
+    if np.max(np.abs(magnitudesStokes)) > 0:
+        magnitudesStokes = magnitudesStokes / np.max(np.abs(magnitudesStokes)) * 0.9
+
+    outputPath = Path(__file__).parent / "files" / "stokesToAmbientWave.wav"
+
+    with WaveFileWriter(outputPath, polarimeterSamplingRate, 1, 2) as writer:
+        writer.WriteSamples(magnitudesStokes)
 
 def readStokesAndOutputWave():
     stokesFilePath = Path(__file__).parent / "files" / "measurments" / "withStipa" / "stipa_big_spool_speaker_on_top.txt"
@@ -136,6 +174,7 @@ def plotFrequencyFromPeopleTalking():
     Contains all the different plots that can be generated in this file.
 """
 plots = {
+    "read_stokes_remove_ambient_output_wave": lambda: readStokesAndRemoveAmbientToWave(),
     "frequency_from_people_talking": lambda: plotFrequencyFromPeopleTalking(),
     "filter_and_save_speech": lambda: filterAndSaveSpeech(),
     "read_stokes_file_and_plot_FFT": lambda: readStokesFileAndPlotFFT(),
