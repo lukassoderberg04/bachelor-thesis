@@ -14,11 +14,45 @@ from BachelorPythonUtilLib.Stokes import StokesVector
 ==================================================================================
 """
 
-activePlot = "read_stokes_remove_ambient_output_wave"
+activePlot = "read_stokes_and_output_wave"
 
 """
 ==================================================================================
 """
+
+def plotStokes():
+    polarimeterSamplingRate = 48800
+    stokesFilePath = Path(__file__).parent / "files" / "test.txt"
+
+    samplesStokes: list[StokesVector] = []
+
+    with PM1000ResultFileReader(stokesFilePath) as reader:
+        measurments = reader.GetAllSamples()
+
+        for measurment in measurments:
+            samplesStokes.append(StokesVector(measurment.GetS0(), measurment.GetS1(), measurment.GetS2(), measurment.GetS3()))
+
+    s1 = [s.GetS1() / s.GetPower() for s in samplesStokes]
+    s2 = [s.GetS2() / s.GetPower() for s in samplesStokes]
+    s3 = [s.GetS3() / s.GetPower() for s in samplesStokes]
+
+    timeAxis = np.arange(len(samplesStokes)) / polarimeterSamplingRate
+
+    plt.figure(figsize=(12, 6))
+    
+    # Plotta parametrarna
+    plt.plot(timeAxis, s1, label='$S_1$ (Linear 0°/90°)')
+    plt.plot(timeAxis, s2, label='$S_2$ (Linear 45°/-45°)')
+    plt.plot(timeAxis, s3, label='$S_3$ (Cirkular)')
+
+    plt.title('Stokes parameters')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Amplitude')
+    plt.grid(True, linestyle=':', alpha=0.6)
+    plt.legend(loc='upper right')
+    
+    plt.tight_layout()
+    plt.show()
 
 def readStokesAndRemoveAmbientToWave():
     polarimeterSamplingRate = 48800
@@ -59,7 +93,7 @@ def readStokesAndRemoveAmbientToWave():
         writer.WriteSamples(magnitudesStokes)
 
 def readStokesAndOutputWave():
-    stokesFilePath = Path(__file__).parent / "files" / "measurments" / "withStipa" / "stipa_big_spool_speaker_on_top.txt"
+    stokesFilePath = Path(__file__).parent / "files" / "measurments" / "spokenWords" / "8_words.txt"
     polarimeterSamplingRate = 48800
 
     samples: list[StokesVector] = []
@@ -178,7 +212,8 @@ plots = {
     "frequency_from_people_talking": lambda: plotFrequencyFromPeopleTalking(),
     "filter_and_save_speech": lambda: filterAndSaveSpeech(),
     "read_stokes_file_and_plot_FFT": lambda: readStokesFileAndPlotFFT(),
-    "read_stokes_and_output_wave": lambda: readStokesAndOutputWave()
+    "read_stokes_and_output_wave": lambda: readStokesAndOutputWave(),
+    "plot_stokes": lambda: plotStokes()
 }
 
 # If the plot exist in the plots... run the lambda function for that specific plot.
